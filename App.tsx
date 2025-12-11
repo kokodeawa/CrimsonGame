@@ -108,7 +108,7 @@ const CRAFTING_RECIPES: CraftingRecipe[] = [
     {
         id: 'oxygen_tank',
         type: 'consumable',
-        cost: { ice: 5, scraps: 10 },
+        cost: { ice: 3, scraps: 6 }, // Reduced cost by ~40% (was 5 ice, 10 scraps)
         output: 1,
         statKey: 'oxygenTanks',
         reqLevel: 1 // Basic
@@ -300,7 +300,7 @@ const TRANSLATIONS = {
         upg_expand: "Base Expansion",
         upg_expand_desc: "Increases internal base size.",
         upg_decon: "Decontamination Unit",
-        upg_decon_desc: "Auto-heals infection when nearby.",
+        upg_decon_desc: "Cura la infección automáticamente cerca.",
         upg_hyperloop: "Hyperloop Access",
         upg_hyperloop_desc: "Reduces travel time between sectors.",
         upg_storage: "Storage Bay",
@@ -624,6 +624,7 @@ const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (isLoading) return; // Block input during load
         if (e.code === 'Escape') {
+            setInfoModal(null); // Fix dark screen bug if modal is stuck
             if (gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU) {
                 toggleBaseUI(false);
             } else if (gameState === GameState.LOCATION_SELECT || gameState === GameState.INVENTORY) {
@@ -707,6 +708,7 @@ const App: React.FC = () => {
         }
     } else {
         playUiSound('ui_close');
+        setInfoModal(null);
         setGameState(GameState.PLAYING);
     }
   };
@@ -1041,6 +1043,7 @@ const App: React.FC = () => {
             volumeSettings={volume}
             language={language}
             toggleInventory={toggleInventory}
+            isLoading={isLoading}
         />
 
         {/* LOADING SCREEN OVERLAY */}
@@ -1138,7 +1141,7 @@ const App: React.FC = () => {
                     </div>
 
                     {/* Mobile Inventory Button - Left Side */}
-                    <button onClick={toggleInventory} className="md:hidden self-start mt-2 bg-gray-900/90 p-3 border border-gray-600 text-white shadow-lg active:scale-95 transition-transform rounded-lg">
+                    <button onClick={toggleInventory} className="lg:hidden self-start mt-2 bg-gray-900/90 p-3 border border-gray-600 text-white shadow-lg active:scale-95 transition-transform rounded-lg">
                          <Briefcase size={24} />
                     </button>
                 </div>
@@ -1152,7 +1155,7 @@ const App: React.FC = () => {
                          </div>
                          
                          {/* Mobile Pause Button - Right Side */}
-                         <button onClick={togglePause} className="md:hidden bg-gray-900/90 p-2 border border-gray-600 text-white shadow-lg active:scale-95 transition-transform rounded-lg h-full flex items-center justify-center">
+                         <button onClick={togglePause} className="lg:hidden bg-gray-900/90 p-2 border border-gray-600 text-white shadow-lg active:scale-95 transition-transform rounded-lg h-full flex items-center justify-center">
                              <Pause size={20} />
                         </button>
                      </div>
@@ -1161,7 +1164,7 @@ const App: React.FC = () => {
 
                 {/* Interaction Prompt (Mobile Only) */}
                 {canInteract && !showBaseOrLab && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-auto md:hidden z-20">
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-auto lg:hidden z-20">
                         <button 
                             onClick={handleMobileInteract} 
                             className="bg-red-950/90 text-red-100 w-64 py-4 font-bold border-2 border-red-500 shadow-[0_0_25px_rgba(255,0,0,0.4)] backdrop-blur rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
@@ -1172,7 +1175,7 @@ const App: React.FC = () => {
                 )}
 
                 {/* Mobile Action Toggle (Right Side - Middle) */}
-                <div className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-auto md:hidden z-10">
+                <div className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-auto lg:hidden z-10">
                     <button 
                         onClick={() => setMobileActionMode(prev => prev === 'MINE' ? 'ATTACK' : 'MINE')}
                         className={`w-16 h-16 rounded-full border-2 flex flex-col items-center justify-center shadow-xl transition-all ${mobileActionMode === 'MINE' ? 'bg-cyan-900/80 border-cyan-400 shadow-[0_0_15px_rgba(0,255,255,0.4)]' : 'bg-red-900/80 border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.4)]'}`}

@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { GameState, Vector2, Particle, LevelObject, PlayerStats, Projectile, Language } from '../types';
 
@@ -17,6 +18,7 @@ interface GameProps {
   volumeSettings: { sfx: number; ambience: number };
   language: Language;
   toggleInventory: () => void; 
+  isLoading: boolean;
 }
 
 const PIXEL_SCALE = 2; 
@@ -261,7 +263,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
     gameState, stats, onUpdateStats, onToggleBase, 
     interactionTrigger, onCanInteract, onShowLocationSelect, 
     requestedStage, onStageChanged, onTravel, mobileActionMode, onGameOver, volumeSettings,
-    language, toggleInventory
+    language, toggleInventory, isLoading
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -875,9 +877,15 @@ export const LivingMetalGame: React.FC<GameProps> = ({
                   
                   const speedLvl = currentStats.miningSpeedLevel || 1; const damage = 1.0 * Math.pow(1.10, speedLvl - 1);
                   if (obj.health !== undefined) {
+                      // CRITICAL FIX: Only apply jitter if health is > 0 to avoid moving object off its chunk during deletion frame
+                      if (obj.health > 0) {
+                          if (Math.random() > 0.5) { obj.x += (Math.random() - 0.5); obj.y += (Math.random() - 0.5); }
+                      }
+
                       obj.health -= damage;
-                      if (Math.random() > 0.5) { obj.x += (Math.random() - 0.5); obj.y += (Math.random() - 0.5); }
+                      
                       if (Math.random() > 0.7) { spawnParticles(objCenterX, objCenterY, 1, '#ffaa00', isInvertedWorld ? -1 : 1); }
+                      
                       if (obj.health <= 0) {
                           // REMOVE OBJECT - Find in actual storage to remove
                           if (obj.width > CHUNK_SIZE || obj.height > CHUNK_SIZE) {
@@ -930,6 +938,9 @@ export const LivingMetalGame: React.FC<GameProps> = ({
   };
 
   const update = () => {
+    // If loading, skip simulation to prevent health/oxygen decay or unfair deaths during travel sequences
+    if (isLoading) return;
+
     const isPaused = gameState === GameState.PAUSED || gameState === GameState.MENU || gameState === GameState.GAME_OVER;
     
     if (rightJoystickRef.current.active && !isPaused) {
@@ -976,7 +987,8 @@ export const LivingMetalGame: React.FC<GameProps> = ({
         if (currentStats.infection !== undefined && Math.abs(currentStats.infection - p.infection) > 1) { p.infection = currentStats.infection; }
 
         if (!isBase) {
-            const currentLevel = currentStats.oxygenLevel || 1; const totalDurationSeconds = 25 * Math.pow(1.10, currentLevel - 1); const decayPerFrame = 100 / (totalDurationSeconds * 60);
+            // Increased base duration from 25 to 50 (100% more)
+            const currentLevel = currentStats.oxygenLevel || 1; const totalDurationSeconds = 50 * Math.pow(1.10, currentLevel - 1); const decayPerFrame = 100 / (totalDurationSeconds * 60);
             p.oxygen = Math.max(0, p.oxygen - decayPerFrame);
             
             p.noOxygenInfectionTimer++;
@@ -1026,7 +1038,8 @@ export const LivingMetalGame: React.FC<GameProps> = ({
             onUpdateStats({ oxygen: p.oxygen, infection: p.infection });
         }
 
-        if (p.oxygen <= 0) { p.damageTimer++; if (p.damageTimer > 60) { p.damageTimer = 0; onUpdateStats({ health: Math.max(0, currentStats.health - 10) }); spawnParticles(p.pos.x + p.width/2, p.pos.y + p.height/2, 5, '#f00', isInvertedWorld ? -1 : 1); triggerShake(3, 10); playSfx('damage'); } } else { p.damageTimer = 0; }
+        // Reduced suffocation damage from 10 to 5
+        if (p.oxygen <= 0) { p.damageTimer++; if (p.damageTimer > 60) { p.damageTimer = 0; onUpdateStats({ health: Math.max(0, currentStats.health - 5) }); spawnParticles(p.pos.x + p.width/2, p.pos.y + p.height/2, 5, '#f00', isInvertedWorld ? -1 : 1); triggerShake(3, 10); playSfx('damage'); } } else { p.damageTimer = 0; }
         if (p.infection >= 100) { p.infectionDamageTimer++; if (p.infectionDamageTimer > 120) { p.infectionDamageTimer = 0; onUpdateStats({ health: Math.max(0, currentStats.health - 5) }); spawnParticles(p.pos.x + p.width/2, p.pos.y + p.height/2, 5, '#a0f', isInvertedWorld ? -1 : 1); triggerShake(2, 5); playSfx('damage'); } } else { p.infectionDamageTimer = 0; }
 
         const GRAVITY = isInvertedWorld ? -0.3 : 0.3; const JUMP = currentStats.highJumpBoots ? 7.0 : 5.0; 
@@ -1423,7 +1436,37 @@ export const LivingMetalGame: React.FC<GameProps> = ({
     ctx.restore(); 
     
     ctx.save(); if (leftJoystickRef.current.active) { const j = leftJoystickRef.current; ctx.beginPath(); ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'; ctx.lineWidth = 2; ctx.arc(j.originX, j.originY, 40, 0, Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; let dx = j.currentX - j.originX; let dy = j.currentY - j.originY; const dist = Math.sqrt(dx*dx + dy*dy); if (dist > 40) { dx = (dx / dist) * 40; dy = (dy / dist) * 40; } ctx.arc(j.originX + dx, j.originY + dy, 15, 0, Math.PI*2); ctx.fill(); }
-    if (window.innerWidth < 768) { const rjX = screenW - 100; const rjY = screenH - 100; ctx.beginPath(); ctx.strokeStyle = mobileActionMode === 'MINE' ? 'rgba(0, 255, 255, 0.1)' : 'rgba(255, 50, 50, 0.1)'; ctx.lineWidth = 2; ctx.arc(rjX, rjY, 60, 0, Math.PI*2); ctx.stroke(); ctx.beginPath(); let knobX = rjX; let knobY = rjY; if (rightJoystickRef.current.active) { const j = rightJoystickRef.current; let dx = j.currentX - j.originX; let dy = j.currentY - j.originY; const dist = Math.sqrt(dx*dx + dy*dy); if (dist > 60) { dx = (dx / dist) * 60; dy = (dy / dist) * 60; } knobX += dx; knobY += dy; ctx.fillStyle = mobileActionMode === 'MINE' ? 'rgba(0, 255, 255, 0.6)' : 'rgba(255, 50, 50, 0.6)'; } else { ctx.fillStyle = 'rgba(100, 100, 100, 0.2)'; } ctx.arc(knobX, knobY, 20, 0, Math.PI*2); ctx.fill(); }
+    
+    // RENDER RIGHT JOYSTICK (MOBILE)
+    // Check for width < 1024 (LG breakpoint) OR active touch points to determine if mobile UI should show
+    const isMobileView = window.innerWidth < 1024 || navigator.maxTouchPoints > 0;
+
+    if (isMobileView) { 
+        const rjX = screenW - 100; 
+        const rjY = screenH - 100; 
+        ctx.beginPath(); 
+        ctx.strokeStyle = mobileActionMode === 'MINE' ? 'rgba(0, 255, 255, 0.1)' : 'rgba(255, 50, 50, 0.1)'; 
+        ctx.lineWidth = 2; 
+        ctx.arc(rjX, rjY, 60, 0, Math.PI*2); 
+        ctx.stroke(); 
+        ctx.beginPath(); 
+        let knobX = rjX; 
+        let knobY = rjY; 
+        if (rightJoystickRef.current.active) { 
+            const j = rightJoystickRef.current; 
+            let dx = j.currentX - j.originX; 
+            let dy = j.currentY - j.originY; 
+            const dist = Math.sqrt(dx*dx + dy*dy); 
+            if (dist > 60) { dx = (dx / dist) * 60; dy = (dy / dist) * 60; } 
+            knobX += dx; 
+            knobY += dy; 
+            ctx.fillStyle = mobileActionMode === 'MINE' ? 'rgba(0, 255, 255, 0.6)' : 'rgba(255, 50, 50, 0.6)'; 
+        } else { 
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.2)'; 
+        } 
+        ctx.arc(knobX, knobY, 20, 0, Math.PI*2); 
+        ctx.fill(); 
+    }
     ctx.restore();
     ctx.fillStyle = 'rgba(0,0,10,0.2)'; ctx.fillRect(0,0, screenW, screenH);
     if (gameState === GameState.PAUSED) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, screenW, screenH); }
