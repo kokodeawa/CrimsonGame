@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect } from 'react';
 import { GameState, Vector2, Particle, LevelObject, PlayerStats, Projectile, Language } from '../types';
 
@@ -275,6 +276,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
   
   const statsRef = useRef(stats);
   const volRef = useRef(volumeSettings);
+  // CRITICAL FIX: Use ref for loading check to prevent stale closures in game loop
   const isLoadingRef = useRef(isLoading);
   const gameStateRef = useRef(gameState);
 
@@ -888,9 +890,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
                   const speedLvl = currentStats.miningSpeedLevel || 1; const damage = 1.0 * Math.pow(1.10, speedLvl - 1);
                   if (obj.health !== undefined) {
                       // CRITICAL FIX: Only apply jitter if health is > 0 to avoid moving object off its chunk during deletion frame
-                      if (obj.health > 0) {
-                          if (Math.random() > 0.5) { obj.x += (Math.random() - 0.5); obj.y += (Math.random() - 0.5); }
-                      }
+                      // JITTER REMOVED TO FIX INFINITE SCRAP EXPLOIT
 
                       obj.health -= damage;
                       
@@ -1367,7 +1367,29 @@ export const LivingMetalGame: React.FC<GameProps> = ({
         } 
     });
 
-    const p = playerRef.current; if (p.canInteractWith) { if (window.innerWidth > 768) { ctx.save(); ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.textAlign = 'center'; const promptY = isInvertedWorld ? p.pos.y + p.height + 15 : p.pos.y - 10; const promptText = language === 'es' ? '[ PULSA F ]' : '[ PRESS F ]'; ctx.fillText(promptText, (p.pos.x + p.width/2) | 0, promptY | 0); ctx.restore(); } }
+    const p = playerRef.current; 
+    if (p.canInteractWith) { 
+        if (window.innerWidth > 768 || navigator.maxTouchPoints === 0) { 
+            ctx.save(); 
+            ctx.fillStyle = '#fff'; 
+            ctx.font = '10px monospace'; 
+            ctx.textAlign = 'center'; 
+            const promptY = isInvertedWorld ? p.pos.y + p.height + 15 : p.pos.y - 10; 
+            const promptText = language === 'es' ? '[ PULSA F ]' : '[ PRESS F ]'; 
+            ctx.fillText(promptText, (p.pos.x + p.width/2) | 0, promptY | 0); 
+            ctx.restore(); 
+        } else {
+            // Mobile Prompt Text
+            ctx.save(); 
+            ctx.fillStyle = '#fff'; 
+            ctx.font = '10px monospace'; 
+            ctx.textAlign = 'center'; 
+            const promptY = isInvertedWorld ? p.pos.y + p.height + 15 : p.pos.y - 10; 
+            const promptText = language === 'es' ? '[ INTERACTUAR ]' : '[ INTERACT ]'; 
+            ctx.fillText(promptText, (p.pos.x + p.width/2) | 0, promptY | 0); 
+            ctx.restore(); 
+        }
+    }
 
     ctx.save(); const yAnchor = isInvertedWorld ? 0 : p.height; ctx.translate(Math.floor(p.pos.x + p.width/2), Math.floor(p.pos.y + yAnchor)); 
     if (isInvertedWorld) { ctx.scale(p.facingRight ? 1 : -1, -1); } else { ctx.scale(p.facingRight ? 1 : -1, 1); }

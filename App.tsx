@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LivingMetalGame } from './components/LivingMetalGame';
 import { GameState, PlayerStats, Language } from './types';
-import { Play, Database, Shield, Lock, Hammer, Zap, Wind, Pickaxe, Droplet, Triangle, Scan, CircleDashed, Move, Flame, Eye, Pause, Hand, Hexagon, Radiation, Swords, Crosshair, AlertCircle, X, Skull, ArrowUpFromLine, Volume2, VolumeX, Volume1, Globe, Biohazard, RefreshCw, Briefcase, Wrench, HeartPulse, Box, Sword, Lightbulb, Cylinder, Syringe, Info, HelpCircle, Backpack, Home, ArrowRight, Loader2, Container, ChevronsRight, FlaskConical, TestTube, Cpu } from 'lucide-react';
+import { Play, Database, Shield, Lock, Hammer, Zap, Wind, Pickaxe, Droplet, Triangle, Scan, CircleDashed, Move, Flame, Eye, Pause, Hand, Hexagon, Radiation, Swords, Crosshair, AlertCircle, X, Skull, ArrowUpFromLine, Volume2, VolumeX, Volume1, Globe, Biohazard, RefreshCw, Briefcase, Wrench, HeartPulse, Box, Sword, Lightbulb, Cylinder, Syringe, Info, HelpCircle, Backpack, Home, ArrowRight, Loader2, Container, ChevronsRight, FlaskConical, TestTube, Cpu, Save } from 'lucide-react';
 
 const INITIAL_STATS: PlayerStats = {
   health: 100,
@@ -188,6 +188,8 @@ const TRANSLATIONS = {
         title: "Crimson Inversion",
         subtitle: "Survive the Living Metal. Walk the Ceiling.",
         init_suit: "Initialize Suit",
+        resume_signal: "Resume Signal",
+        game_saved: "Progress Saved",
         system_paused: "SYSTEM PAUSED",
         audio_systems: "SYSTEM SETTINGS",
         sfx: "SFX MODULE",
@@ -320,6 +322,8 @@ const TRANSLATIONS = {
         title: "Inversión Carmesí",
         subtitle: "Sobrevive al Metal Viviente. Camina por el Techo.",
         init_suit: "Iniciar Traje",
+        resume_signal: "Reanudar Señal",
+        game_saved: "Progreso Guardado",
         system_paused: "SISTEMA PAUSADO",
         audio_systems: "CONFIGURACIÓN",
         sfx: "EFECTOS",
@@ -460,14 +464,17 @@ const RESOURCE_CONFIG: Record<string, { icon: any, color: string }> = {
     uranium: { icon: Radiation, color: "text-green-500" }
 };
 
+const SAVE_KEY = 'crimson_save';
+
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   const [stats, setStats] = useState<PlayerStats>(INITIAL_STATS);
   const [canInteract, setCanInteract] = useState(false);
   const [interactionTrigger, setInteractionTrigger] = useState(0);
   const [language, setLanguage] = useState<Language>('es'); 
+  const [hasSave, setHasSave] = useState(false);
   
-  // Volume increased to 90% (Requested 70% increase from 50% base -> 85%, bumped to 90% for margin)
+  // Volume increased to 90%
   const [volume, setVolume] = useState({ sfx: 0.90, ambience: 0.90 });
   const [mobileActionMode, setMobileActionMode] = useState<'MINE' | 'ATTACK'>('MINE');
 
@@ -490,6 +497,28 @@ const App: React.FC = () => {
   const statsUpdateThrottleRef = useRef<number>(0);
 
   const t = TRANSLATIONS[language];
+
+  // Check for save on load
+  useEffect(() => {
+    try {
+        const savedData = localStorage.getItem(SAVE_KEY);
+        if (savedData) setHasSave(true);
+    } catch (e) {
+        console.error("Failed to read save", e);
+    }
+  }, []);
+
+  // Auto-Save Effect
+  useEffect(() => {
+      if (gameState === GameState.PLAYING || gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU || gameState === GameState.INVENTORY) {
+          const timeout = setTimeout(() => {
+              const data = { stats, stage: currentStage, timestamp: Date.now() };
+              localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+              setHasSave(true);
+          }, 2000); // Debounce save every 2 seconds
+          return () => clearTimeout(timeout);
+      }
+  }, [stats, currentStage, gameState]);
 
   // Helper to calculate dynamic cost based on current level
   const getDynamicCost = (upgradeId: string): ResourceCost => {
@@ -663,7 +692,30 @@ const App: React.FC = () => {
   const handleStart = () => {
     initUiAudio();
     playUiSound('click');
+    setStats(INITIAL_STATS); // Reset stats for new game
+    setRequestedStage('BASE'); // Reset position
     setGameState(GameState.PLAYING);
+  };
+
+  const handleContinue = () => {
+    initUiAudio();
+    const save = localStorage.getItem(SAVE_KEY);
+    if (save) {
+        try {
+            const data = JSON.parse(save);
+            if (data.stats) setStats(data.stats);
+            if (data.stage) {
+                setCurrentStage(data.stage);
+                setRequestedStage(data.stage);
+            }
+            playUiSound('click');
+            setGameState(GameState.PLAYING);
+        } catch (e) {
+            console.error("Save file corrupted");
+            setToast({ message: "Save Corrupted", visible: true });
+            setTimeout(() => setToast(null), 2000);
+        }
+    }
   };
 
   // Throttled stats update to prevent React churn
@@ -1166,10 +1218,26 @@ const App: React.FC = () => {
                         </button>
                      </div>
                      <div className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/50 px-2 py-1 rounded-full">{t.sector}</div>
+                     {/* Save Indicator */}
+                     {hasSave && (
+                        <div className="text-[10px] text-green-500 uppercase tracking-widest flex items-center gap-1 bg-black/50 px-2 py-1 rounded-full">
+                            <Save size={10} /> {t.game_saved}
+                        </div>
+                     )}
                 </div>
 
                 {/* Mobile Action Controls (Right Side) */}
-                <div className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-auto lg:hidden z-10 flex flex-col items-center gap-4">
+                <div className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-auto lg:hidden z-10 flex flex-row items-end gap-4">
+                    {/* Interact Button - Smaller, next to action */}
+                    {canInteract && !showBaseOrLab && (
+                        <button 
+                            onClick={handleMobileInteract} 
+                            className="w-10 h-10 mb-2 rounded-full border-2 bg-orange-900/90 border-orange-500 text-orange-100 flex items-center justify-center shadow-lg active:scale-95 transition-transform animate-pulse"
+                        >
+                            <Hand size={16} />
+                        </button>
+                    )}
+
                      {/* Action Toggle (Pickaxe/Sword) */}
                     <button 
                         onClick={() => setMobileActionMode(prev => prev === 'MINE' ? 'ATTACK' : 'MINE')}
@@ -1178,16 +1246,6 @@ const App: React.FC = () => {
                         {mobileActionMode === 'MINE' ? <Pickaxe size={24} /> : <Sword size={24} />}
                         <span className="text-[10px] font-bold uppercase mt-1">{mobileActionMode === 'MINE' ? 'MINE' : 'FIGHT'}</span>
                     </button>
-
-                    {/* Smaller Interact Button next to actions */}
-                    {canInteract && !showBaseOrLab && (
-                        <button 
-                            onClick={handleMobileInteract} 
-                            className="w-12 h-12 rounded-full border-2 bg-orange-900/90 border-orange-500 text-orange-100 flex items-center justify-center shadow-lg active:scale-95 transition-transform animate-pulse"
-                        >
-                            <Hand size={20} />
-                        </button>
-                    )}
                 </div>
             </div>
         )}
@@ -1200,6 +1258,15 @@ const App: React.FC = () => {
                     <h1 className="text-4xl md:text-5xl font-black mb-2 tracking-tighter text-red-600 uppercase glitch-text drop-shadow-lg">{t.title}</h1>
                     <p className="text-gray-400 text-xs md:text-sm mb-8 tracking-widest uppercase">{t.subtitle}</p>
                     
+                    {hasSave && (
+                        <button 
+                            onClick={handleContinue}
+                            className="w-full bg-green-900/80 hover:bg-green-800 border border-green-600 text-green-100 font-bold py-4 px-6 mb-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:tracking-widest shadow-lg"
+                        >
+                            <Save size={20} /> {t.resume_signal}
+                        </button>
+                    )}
+
                     <button 
                         onClick={handleStart}
                         className="w-full bg-red-800 hover:bg-red-700 text-white font-bold py-4 px-6 mb-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:tracking-widest shadow-lg"
@@ -1280,11 +1347,11 @@ const App: React.FC = () => {
         {/* BASE MENU - Updated for Mobile sizing */}
         {gameState === GameState.BASE_MENU && (
             <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-40 p-2 md:p-8">
-                <div className="w-[98%] md:w-[95%] max-w-5xl h-auto max-h-[90vh] flex flex-col bg-gray-950 border-2 border-red-900 rounded-xl overflow-hidden shadow-2xl animate-border-pulse relative">
+                <div className="w-[98%] md:w-[95%] max-w-5xl h-auto max-h-[85vh] flex flex-col bg-gray-950 border-2 border-red-900 rounded-xl overflow-hidden shadow-2xl animate-border-pulse relative">
                     <button onClick={() => toggleBaseUI(false)} className="absolute top-2 right-2 md:top-4 md:right-4 text-gray-500 hover:text-white z-10 bg-black/50 rounded-full p-1"><X size={20} /></button>
                     
                     {/* Header */}
-                    <div className="bg-gray-900 p-3 md:p-6 border-b border-red-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="bg-gray-900 p-2 md:p-6 border-b border-red-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
                             <div className="flex items-center gap-3 text-red-500 mb-1">
                                 <Wrench size={20} className="md:w-6 md:h-6" />
@@ -1318,7 +1385,7 @@ const App: React.FC = () => {
                     {/* Content - Scrollable */}
                     <div className="flex-1 overflow-y-auto p-2 md:p-6 bg-black/50 lab-scroll min-h-0">
                         {baseTab === 'upgrades' ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
                                 {/* Suit Upgrades */}
                                 {[
                                     { id: 'oxygen', icon: Wind, title: t.upg_oxygen, desc: t.upg_oxygen_desc, lvl: stats.oxygenLevel, max: 10 },
@@ -1377,6 +1444,9 @@ const App: React.FC = () => {
                             <div className="space-y-3 md:space-y-4">
                                 {CRAFTING_RECIPES.filter(r => r.type !== 'consumable').map(recipe => {
                                     // Safety checks for fabrication rendering to prevent black screen
+                                    const recipeId = recipe?.id;
+                                    if (!recipeId) return null;
+
                                     const isWeapon = recipe.type === 'weapon';
                                     const isUpgrade = recipe.type === 'upgrade';
                                     
@@ -1445,11 +1515,11 @@ const App: React.FC = () => {
         {/* LAB MENU (Bio-Laboratory) - Updated for Mobile sizing */}
         {gameState === GameState.LAB_MENU && (
             <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-40 p-2 md:p-8">
-                <div className="w-[98%] md:w-[95%] max-w-5xl h-auto max-h-[90vh] flex flex-col bg-gray-950 border-2 border-green-900 rounded-xl overflow-hidden shadow-[0_0_50px_rgba(0,100,0,0.2)] animate-border-pulse-green relative">
+                <div className="w-[98%] md:w-[95%] max-w-5xl h-auto max-h-[85vh] flex flex-col bg-gray-950 border-2 border-green-900 rounded-xl overflow-hidden shadow-[0_0_50px_rgba(0,100,0,0.2)] animate-border-pulse-green relative">
                     <button onClick={() => toggleBaseUI(false)} className="absolute top-2 right-2 md:top-4 md:right-4 text-gray-500 hover:text-white z-10 bg-black/50 rounded-full p-1"><X size={20} /></button>
                     
                     {/* Header */}
-                    <div className="bg-gray-900 p-3 md:p-6 border-b border-green-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="bg-gray-900 p-2 md:p-6 border-b border-green-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
                             <div className="flex items-center gap-3 text-green-500 mb-1">
                                 <FlaskConical size={20} className="md:w-6 md:h-6" />
@@ -1485,6 +1555,9 @@ const App: React.FC = () => {
                         {labTab === 'brewing' ? (
                              <div className="space-y-3 md:space-y-4">
                                 {CRAFTING_RECIPES.filter(r => r.type === 'consumable').map(recipe => {
+                                    // Safety check
+                                    if (!recipe?.id) return null;
+
                                     const isLocked = recipe.reqLevel > stats.labLevel;
                                     const canCraft = !isLocked && canAfford(recipe.cost);
                                     
@@ -1584,7 +1657,7 @@ const App: React.FC = () => {
         {/* INVENTORY - Updated for Mobile Sizing */}
         {gameState === GameState.INVENTORY && (
             <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 p-2 md:p-8">
-                <div className="w-[98%] md:w-[95%] max-w-4xl h-auto max-h-[90vh] bg-gray-950 border-2 border-gray-800 rounded-xl overflow-hidden flex flex-col shadow-2xl relative">
+                <div className="w-[98%] md:w-[95%] max-w-4xl h-auto max-h-[85vh] bg-gray-950 border-2 border-gray-800 rounded-xl overflow-hidden flex flex-col shadow-2xl relative">
                      <button onClick={toggleInventory} className="absolute top-2 right-2 md:top-4 md:right-4 text-gray-500 hover:text-white z-10 bg-black/50 rounded-full p-1"><X size={20} /></button>
                      <div className="p-4 md:p-6 border-b border-gray-800 flex items-center gap-3 shrink-0">
                          <Briefcase className="text-gray-400" />
