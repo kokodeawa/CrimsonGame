@@ -275,6 +275,8 @@ export const LivingMetalGame: React.FC<GameProps> = ({
   
   const statsRef = useRef(stats);
   const volRef = useRef(volumeSettings);
+  const isLoadingRef = useRef(isLoading);
+  const gameStateRef = useRef(gameState);
 
   useEffect(() => { statsRef.current = stats; }, [stats]);
   useEffect(() => {
@@ -283,6 +285,14 @@ export const LivingMetalGame: React.FC<GameProps> = ({
           ambienceNodesRef.current.gain.gain.setTargetAtTime(volumeSettings.ambience, (audioCtxRef.current?.currentTime || 0), 0.1);
       }
   }, [volumeSettings]);
+
+  useEffect(() => {
+      isLoadingRef.current = isLoading;
+  }, [isLoading]);
+  
+  useEffect(() => {
+      gameStateRef.current = gameState;
+  }, [gameState]);
 
   // Handle Mobile Interaction Trigger
   useEffect(() => {
@@ -938,10 +948,12 @@ export const LivingMetalGame: React.FC<GameProps> = ({
   };
 
   const update = () => {
-    // If loading, skip simulation to prevent health/oxygen decay or unfair deaths during travel sequences
-    if (isLoading) return;
+    // CRITICAL FIX: Use ref for loading check to prevent closure staleness in game loop
+    if (isLoadingRef.current) return;
 
-    const isPaused = gameState === GameState.PAUSED || gameState === GameState.MENU || gameState === GameState.GAME_OVER;
+    // Use gameStateRef for pause checks if needed, though pause tearing down useEffect works too.
+    // However, fast toggles might benefit from ref check.
+    const isPaused = gameStateRef.current === GameState.PAUSED || gameStateRef.current === GameState.MENU || gameStateRef.current === GameState.GAME_OVER;
     
     if (rightJoystickRef.current.active && !isPaused) {
         const j = rightJoystickRef.current;

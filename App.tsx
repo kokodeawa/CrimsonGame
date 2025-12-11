@@ -300,7 +300,7 @@ const TRANSLATIONS = {
         upg_expand: "Base Expansion",
         upg_expand_desc: "Increases internal base size.",
         upg_decon: "Decontamination Unit",
-        upg_decon_desc: "Cura la infección automáticamente cerca.",
+        upg_decon_desc: "Heals infection automatically when nearby.",
         upg_hyperloop: "Hyperloop Access",
         upg_hyperloop_desc: "Reduces travel time between sectors.",
         upg_storage: "Storage Bay",
@@ -859,23 +859,29 @@ const App: React.FC = () => {
 
       if (recipe.type === 'weapon') {
           const wId = recipe.weaponId;
-          setStats(prev => ({
-              ...prev,
-              unlockedWeapons: [...prev.unlockedWeapons, wId],
-              equippedWeapon: wId 
-          }));
+          if (wId) {
+             setStats(prev => ({
+                 ...prev,
+                 unlockedWeapons: [...prev.unlockedWeapons, wId],
+                 equippedWeapon: wId 
+             }));
+          }
       } else if (recipe.type === 'upgrade') {
           const statKey = recipe.statKey;
-          setStats(prev => ({
-              ...prev,
-              [statKey]: true
-          }));
+          if (statKey) {
+             setStats(prev => ({
+                 ...prev,
+                 [statKey]: true
+             }));
+          }
       } else {
           const statKey = recipe.statKey;
-          setStats(prev => ({
-              ...prev,
-              [statKey]: (prev[statKey as keyof PlayerStats] as number) + recipe.output
-          }));
+          if (statKey) {
+             setStats(prev => ({
+                 ...prev,
+                 [statKey]: (prev[statKey as keyof PlayerStats] as number) + recipe.output
+             }));
+          }
       }
   };
 
@@ -1162,20 +1168,9 @@ const App: React.FC = () => {
                      <div className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/50 px-2 py-1 rounded-full">{t.sector}</div>
                 </div>
 
-                {/* Interaction Prompt (Mobile Only) */}
-                {canInteract && !showBaseOrLab && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-auto lg:hidden z-20">
-                        <button 
-                            onClick={handleMobileInteract} 
-                            className="bg-red-950/90 text-red-100 w-64 py-4 font-bold border-2 border-red-500 shadow-[0_0_25px_rgba(255,0,0,0.4)] backdrop-blur rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                        >
-                            <Hand size={20} /> {t.interact}
-                        </button>
-                    </div>
-                )}
-
-                {/* Mobile Action Toggle (Right Side - Middle) */}
-                <div className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-auto lg:hidden z-10">
+                {/* Mobile Action Controls (Right Side) */}
+                <div className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-auto lg:hidden z-10 flex flex-col items-center gap-4">
+                     {/* Action Toggle (Pickaxe/Sword) */}
                     <button 
                         onClick={() => setMobileActionMode(prev => prev === 'MINE' ? 'ATTACK' : 'MINE')}
                         className={`w-16 h-16 rounded-full border-2 flex flex-col items-center justify-center shadow-xl transition-all ${mobileActionMode === 'MINE' ? 'bg-cyan-900/80 border-cyan-400 shadow-[0_0_15px_rgba(0,255,255,0.4)]' : 'bg-red-900/80 border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.4)]'}`}
@@ -1183,6 +1178,16 @@ const App: React.FC = () => {
                         {mobileActionMode === 'MINE' ? <Pickaxe size={24} /> : <Sword size={24} />}
                         <span className="text-[10px] font-bold uppercase mt-1">{mobileActionMode === 'MINE' ? 'MINE' : 'FIGHT'}</span>
                     </button>
+
+                    {/* Smaller Interact Button next to actions */}
+                    {canInteract && !showBaseOrLab && (
+                        <button 
+                            onClick={handleMobileInteract} 
+                            className="w-12 h-12 rounded-full border-2 bg-orange-900/90 border-orange-500 text-orange-100 flex items-center justify-center shadow-lg active:scale-95 transition-transform animate-pulse"
+                        >
+                            <Hand size={20} />
+                        </button>
+                    )}
                 </div>
             </div>
         )}
@@ -1272,48 +1277,48 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* BASE MENU */}
+        {/* BASE MENU - Updated for Mobile sizing */}
         {gameState === GameState.BASE_MENU && (
             <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-40 p-2 md:p-8">
-                <div className="w-[95%] max-w-5xl h-[85vh] bg-gray-950 border-2 border-red-900 rounded-xl overflow-hidden flex flex-col shadow-2xl animate-border-pulse relative">
-                    <button onClick={() => toggleBaseUI(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white z-10"><X size={24} /></button>
+                <div className="w-[98%] md:w-[95%] max-w-5xl h-auto max-h-[90vh] flex flex-col bg-gray-950 border-2 border-red-900 rounded-xl overflow-hidden shadow-2xl animate-border-pulse relative">
+                    <button onClick={() => toggleBaseUI(false)} className="absolute top-2 right-2 md:top-4 md:right-4 text-gray-500 hover:text-white z-10 bg-black/50 rounded-full p-1"><X size={20} /></button>
                     
                     {/* Header */}
-                    <div className="bg-gray-900 p-4 md:p-6 border-b border-red-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="bg-gray-900 p-3 md:p-6 border-b border-red-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
                             <div className="flex items-center gap-3 text-red-500 mb-1">
-                                <Wrench size={24} />
-                                <h2 className="text-2xl md:text-3xl font-black tracking-tighter">{t.engineering}</h2>
+                                <Wrench size={20} className="md:w-6 md:h-6" />
+                                <h2 className="text-xl md:text-3xl font-black tracking-tighter">{t.engineering}</h2>
                             </div>
-                            <div className="text-xs text-green-500 font-mono tracking-widest uppercase">{t.status_operational}</div>
+                            <div className="text-[10px] md:text-xs text-green-500 font-mono tracking-widest uppercase">{t.status_operational}</div>
                         </div>
-                        <div className="flex items-center gap-4 text-xs md:text-sm bg-black/40 p-2 rounded-lg border border-gray-800">
-                             <div className="flex items-center gap-2"><RefreshCw size={14} className="text-gray-400"/> {stats.scraps} <span className="hidden sm:inline text-gray-600">{t.res_scraps}</span></div>
-                             <div className="flex items-center gap-2"><Box size={14} className="text-gray-400"/> {stats.iron} <span className="hidden sm:inline text-gray-600">{t.res_iron}</span></div>
-                             <div className="flex items-center gap-2"><Triangle size={14} className="text-gray-400"/> {stats.wood} <span className="hidden sm:inline text-gray-600">{t.res_wood}</span></div>
+                        <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-sm bg-black/40 p-2 rounded-lg border border-gray-800 overflow-x-auto whitespace-nowrap">
+                             <div className="flex items-center gap-1 md:gap-2"><RefreshCw size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.scraps} <span className="hidden sm:inline text-gray-600">{t.res_scraps}</span></div>
+                             <div className="flex items-center gap-1 md:gap-2"><Box size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.iron} <span className="hidden sm:inline text-gray-600">{t.res_iron}</span></div>
+                             <div className="flex items-center gap-1 md:gap-2"><Triangle size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.wood} <span className="hidden sm:inline text-gray-600">{t.res_wood}</span></div>
                         </div>
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex border-b border-gray-800">
+                    <div className="flex border-b border-gray-800 shrink-0">
                         <button 
                             onClick={() => setBaseTab('upgrades')}
-                            className={`flex-1 py-4 text-center font-bold tracking-widest text-sm md:text-base transition-colors ${baseTab === 'upgrades' ? 'bg-red-900/20 text-red-500 border-b-2 border-red-500' : 'text-gray-500 hover:bg-gray-900'}`}
+                            className={`flex-1 py-3 md:py-4 text-center font-bold tracking-widest text-xs md:text-base transition-colors ${baseTab === 'upgrades' ? 'bg-red-900/20 text-red-500 border-b-2 border-red-500' : 'text-gray-500 hover:bg-gray-900'}`}
                         >
                             {t.upgrade}
                         </button>
                         <button 
                             onClick={() => setBaseTab('fabrication')}
-                            className={`flex-1 py-4 text-center font-bold tracking-widest text-sm md:text-base transition-colors ${baseTab === 'fabrication' ? 'bg-red-900/20 text-red-500 border-b-2 border-red-500' : 'text-gray-500 hover:bg-gray-900'}`}
+                            className={`flex-1 py-3 md:py-4 text-center font-bold tracking-widest text-xs md:text-base transition-colors ${baseTab === 'fabrication' ? 'bg-red-900/20 text-red-500 border-b-2 border-red-500' : 'text-gray-500 hover:bg-gray-900'}`}
                         >
                             {t.crafting}
                         </button>
                     </div>
 
-                    {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-black/50 lab-scroll">
+                    {/* Content - Scrollable */}
+                    <div className="flex-1 overflow-y-auto p-2 md:p-6 bg-black/50 lab-scroll min-h-0">
                         {baseTab === 'upgrades' ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                                 {/* Suit Upgrades */}
                                 {[
                                     { id: 'oxygen', icon: Wind, title: t.upg_oxygen, desc: t.upg_oxygen_desc, lvl: stats.oxygenLevel, max: 10 },
@@ -1338,26 +1343,26 @@ const App: React.FC = () => {
                                     const canBuy = !isMaxed && cost && canAfford(cost);
 
                                     return (
-                                        <div key={u.id} className={`bg-gray-900 border ${isMaxed ? 'border-green-900/50 opacity-75' : 'border-gray-800'} p-4 rounded-xl flex flex-col gap-3 group hover:border-red-900/50 transition-all`}>
+                                        <div key={u.id} className={`bg-gray-900 border ${isMaxed ? 'border-green-900/50 opacity-75' : 'border-gray-800'} p-3 md:p-4 rounded-xl flex flex-col gap-2 md:gap-3 group hover:border-red-900/50 transition-all`}>
                                             <div className="flex justify-between items-start">
-                                                <div className="p-3 bg-black rounded-lg border border-gray-800 text-red-500">
-                                                    <u.icon size={24} />
+                                                <div className="p-2 md:p-3 bg-black rounded-lg border border-gray-800 text-red-500">
+                                                    <u.icon size={20} className="md:w-6 md:h-6" />
                                                 </div>
-                                                <div className="text-xs font-bold text-gray-600 bg-black px-2 py-1 rounded">LVL {u.lvl}</div>
+                                                <div className="text-[10px] md:text-xs font-bold text-gray-600 bg-black px-2 py-1 rounded">LVL {u.lvl}</div>
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-gray-200">{u.title}</h3>
-                                                <p className="text-xs text-gray-500 mt-1 h-8 leading-tight">{u.desc}</p>
+                                                <h3 className="font-bold text-sm md:text-base text-gray-200">{u.title}</h3>
+                                                <p className="text-[10px] md:text-xs text-gray-500 mt-1 h-8 leading-tight">{u.desc}</p>
                                             </div>
-                                            <div className="mt-auto pt-4 border-t border-gray-800">
+                                            <div className="mt-auto pt-2 md:pt-4 border-t border-gray-800">
                                                 {isMaxed ? (
-                                                     <div className="w-full py-2 text-center text-green-700 font-bold text-xs bg-green-950/20 rounded border border-green-900/30">MAX LEVEL</div>
+                                                     <div className="w-full py-2 text-center text-green-700 font-bold text-[10px] md:text-xs bg-green-950/20 rounded border border-green-900/30">MAX LEVEL</div>
                                                 ) : (
-                                                    <div className="flex items-center justify-between">
+                                                    <div className="flex items-center justify-between flex-wrap gap-2">
                                                         {renderCost(cost)}
                                                         <button 
                                                             onClick={() => upgradeBase(u.id)}
-                                                            className={`px-4 py-2 rounded font-bold text-xs transition-colors ${canBuy ? 'bg-red-900 hover:bg-red-800 text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
+                                                            className={`px-3 py-1.5 md:px-4 md:py-2 rounded font-bold text-[10px] md:text-xs transition-colors ml-auto ${canBuy ? 'bg-red-900 hover:bg-red-800 text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
                                                         >
                                                             {canBuy ? t.buy : t.need}
                                                         </button>
@@ -1369,11 +1374,25 @@ const App: React.FC = () => {
                                 })}
                             </div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-3 md:space-y-4">
                                 {CRAFTING_RECIPES.filter(r => r.type !== 'consumable').map(recipe => {
+                                    // Safety checks for fabrication rendering to prevent black screen
                                     const isWeapon = recipe.type === 'weapon';
                                     const isUpgrade = recipe.type === 'upgrade';
-                                    const isOwned = isWeapon ? stats.unlockedWeapons.includes(recipe.weaponId!) : (isUpgrade ? stats[recipe.statKey!] : false);
+                                    
+                                    let isOwned = false;
+                                    try {
+                                        if (isWeapon && recipe.weaponId) {
+                                            isOwned = stats.unlockedWeapons.includes(recipe.weaponId);
+                                        } else if (isUpgrade && recipe.statKey) {
+                                            // Handle boolean vs number stats safely
+                                            const val = stats[recipe.statKey];
+                                            isOwned = !!val;
+                                        }
+                                    } catch (e) {
+                                        console.error("Error checking ownership", e);
+                                    }
+
                                     const isLocked = recipe.reqLevel > stats.inventoryLevel;
                                     const canCraft = !isLocked && !isOwned && canAfford(recipe.cost);
 
@@ -1387,27 +1406,27 @@ const App: React.FC = () => {
                                     else if (recipe.id === 'weapon_laser') { title = t.wpn_laser; desc = t.wpn_laser_desc; Icon = Zap; }
 
                                     return (
-                                        <div key={recipe.id} className="bg-gray-900 border border-gray-800 p-4 rounded-xl flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-3 rounded-lg border ${isOwned ? 'bg-green-950/20 border-green-900/50 text-green-500' : 'bg-black border-gray-800 text-gray-400'}`}>
-                                                    <Icon size={24} />
+                                        <div key={recipe.id} className="bg-gray-900 border border-gray-800 p-3 md:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3 md:gap-4">
+                                                <div className={`p-2 md:p-3 rounded-lg border ${isOwned ? 'bg-green-950/20 border-green-900/50 text-green-500' : 'bg-black border-gray-800 text-gray-400'}`}>
+                                                    <Icon size={20} className="md:w-6 md:h-6" />
                                                 </div>
                                                 <div>
-                                                    <h3 className="font-bold text-gray-200">{title}</h3>
-                                                    <p className="text-xs text-gray-500">{desc}</p>
+                                                    <h3 className="font-bold text-sm md:text-base text-gray-200">{title}</h3>
+                                                    <p className="text-[10px] md:text-xs text-gray-500">{desc}</p>
                                                     {isLocked && <div className="text-[10px] text-red-500 mt-1 font-bold">{t.locked_fab}</div>}
                                                 </div>
                                             </div>
                                             
                                             {isOwned ? (
-                                                <div className="px-4 py-2 bg-gray-800 rounded text-xs text-gray-400 font-bold border border-gray-700">{t.crafted}</div>
+                                                <div className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-800 rounded text-[10px] md:text-xs text-gray-400 font-bold border border-gray-700 text-center">{t.crafted}</div>
                                             ) : (
-                                                <div className="flex flex-col items-end gap-2">
+                                                <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 w-full sm:w-auto">
                                                     {renderCost(recipe.cost)}
                                                     <button 
                                                         onClick={() => craftItem(recipe.id)}
                                                         disabled={!canCraft}
-                                                        className={`px-6 py-2 rounded font-bold text-xs ${canCraft ? 'bg-red-900 hover:bg-red-800 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}
+                                                        className={`px-4 py-1.5 md:px-6 md:py-2 rounded font-bold text-[10px] md:text-xs ${canCraft ? 'bg-red-900 hover:bg-red-800 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}
                                                     >
                                                         {isLocked ? t.locked : t.craft}
                                                     </button>
@@ -1423,48 +1442,48 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* LAB MENU (Bio-Laboratory) */}
+        {/* LAB MENU (Bio-Laboratory) - Updated for Mobile sizing */}
         {gameState === GameState.LAB_MENU && (
             <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-40 p-2 md:p-8">
-                <div className="w-[95%] max-w-5xl h-[85vh] bg-gray-950 border-2 border-green-900 rounded-xl overflow-hidden flex flex-col shadow-[0_0_50px_rgba(0,100,0,0.2)] animate-border-pulse-green relative">
-                    <button onClick={() => toggleBaseUI(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white z-10"><X size={24} /></button>
+                <div className="w-[98%] md:w-[95%] max-w-5xl h-auto max-h-[90vh] flex flex-col bg-gray-950 border-2 border-green-900 rounded-xl overflow-hidden shadow-[0_0_50px_rgba(0,100,0,0.2)] animate-border-pulse-green relative">
+                    <button onClick={() => toggleBaseUI(false)} className="absolute top-2 right-2 md:top-4 md:right-4 text-gray-500 hover:text-white z-10 bg-black/50 rounded-full p-1"><X size={20} /></button>
                     
                     {/* Header */}
-                    <div className="bg-gray-900 p-4 md:p-6 border-b border-green-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="bg-gray-900 p-3 md:p-6 border-b border-green-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
                             <div className="flex items-center gap-3 text-green-500 mb-1">
-                                <FlaskConical size={24} />
-                                <h2 className="text-2xl md:text-3xl font-black tracking-tighter">{t.laboratory}</h2>
+                                <FlaskConical size={20} className="md:w-6 md:h-6" />
+                                <h2 className="text-xl md:text-3xl font-black tracking-tighter">{t.laboratory}</h2>
                             </div>
-                            <div className="text-xs text-green-700 font-mono tracking-widest uppercase">{t.status_operational}</div>
+                            <div className="text-[10px] md:text-xs text-green-700 font-mono tracking-widest uppercase">{t.status_operational}</div>
                         </div>
-                        <div className="flex items-center gap-4 text-xs md:text-sm bg-black/40 p-2 rounded-lg border border-gray-800">
-                             <div className="flex items-center gap-2"><RefreshCw size={14} className="text-gray-400"/> {stats.scraps} <span className="hidden sm:inline text-gray-600">{t.res_scraps}</span></div>
-                             <div className="flex items-center gap-2"><Lightbulb size={14} className="text-gray-400"/> {stats.coal} <span className="hidden sm:inline text-gray-600">{t.res_coal}</span></div>
-                             <div className="flex items-center gap-2"><Droplet size={14} className="text-gray-400"/> {stats.ice} <span className="hidden sm:inline text-gray-600">{t.res_ice}</span></div>
+                        <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-sm bg-black/40 p-2 rounded-lg border border-gray-800 overflow-x-auto whitespace-nowrap">
+                             <div className="flex items-center gap-1 md:gap-2"><RefreshCw size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.scraps} <span className="hidden sm:inline text-gray-600">{t.res_scraps}</span></div>
+                             <div className="flex items-center gap-1 md:gap-2"><Lightbulb size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.coal} <span className="hidden sm:inline text-gray-600">{t.res_coal}</span></div>
+                             <div className="flex items-center gap-1 md:gap-2"><Droplet size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.ice} <span className="hidden sm:inline text-gray-600">{t.res_ice}</span></div>
                         </div>
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex border-b border-gray-800">
+                    <div className="flex border-b border-gray-800 shrink-0">
                         <button 
                             onClick={() => setLabTab('brewing')}
-                            className={`flex-1 py-4 text-center font-bold tracking-widest text-sm md:text-base transition-colors ${labTab === 'brewing' ? 'bg-green-900/20 text-green-500 border-b-2 border-green-500' : 'text-gray-500 hover:bg-gray-900'}`}
+                            className={`flex-1 py-3 md:py-4 text-center font-bold tracking-widest text-xs md:text-base transition-colors ${labTab === 'brewing' ? 'bg-green-900/20 text-green-500 border-b-2 border-green-500' : 'text-gray-500 hover:bg-gray-900'}`}
                         >
-                            <FlaskConical className="inline mr-2" size={16} /> {t.brewing}
+                            <FlaskConical className="inline mr-2 w-3 h-3 md:w-4 md:h-4" /> {t.brewing}
                         </button>
                         <button 
                             onClick={() => setLabTab('research')}
-                            className={`flex-1 py-4 text-center font-bold tracking-widest text-sm md:text-base transition-colors ${labTab === 'research' ? 'bg-green-900/20 text-green-500 border-b-2 border-green-500' : 'text-gray-500 hover:bg-gray-900'}`}
+                            className={`flex-1 py-3 md:py-4 text-center font-bold tracking-widest text-xs md:text-base transition-colors ${labTab === 'research' ? 'bg-green-900/20 text-green-500 border-b-2 border-green-500' : 'text-gray-500 hover:bg-gray-900'}`}
                         >
-                            <TestTube className="inline mr-2" size={16} /> {t.research}
+                            <TestTube className="inline mr-2 w-3 h-3 md:w-4 md:h-4" /> {t.research}
                         </button>
                     </div>
 
-                    {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-black/50 lab-scroll">
+                    {/* Content - Scrollable */}
+                    <div className="flex-1 overflow-y-auto p-2 md:p-6 bg-black/50 lab-scroll min-h-0">
                         {labTab === 'brewing' ? (
-                             <div className="space-y-4">
+                             <div className="space-y-3 md:space-y-4">
                                 {CRAFTING_RECIPES.filter(r => r.type === 'consumable').map(recipe => {
                                     const isLocked = recipe.reqLevel > stats.labLevel;
                                     const canCraft = !isLocked && canAfford(recipe.cost);
@@ -1480,24 +1499,26 @@ const App: React.FC = () => {
                                     else if (recipe.id === 'immunity_booster') { title = t.item_booster; desc = t.item_booster_desc; Icon = Shield; }
 
                                     return (
-                                        <div key={recipe.id} className="bg-gray-900 border border-gray-800 p-4 rounded-xl flex items-center justify-between group hover:border-green-900/30 transition-all">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-3 rounded-lg border ${isLocked ? 'bg-black border-gray-800 text-gray-600' : 'bg-green-950/20 border-green-900/30 text-green-500'}`}>
-                                                    <Icon size={24} />
+                                        <div key={recipe.id} className="bg-gray-900 border border-gray-800 p-3 md:p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between group hover:border-green-900/30 transition-all gap-3">
+                                            <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto">
+                                                <div className={`p-2 md:p-3 rounded-lg border ${isLocked ? 'bg-black border-gray-800 text-gray-600' : 'bg-green-950/20 border-green-900/30 text-green-500'}`}>
+                                                    <Icon size={20} className="md:w-6 md:h-6" />
                                                 </div>
-                                                <div>
+                                                <div className="flex-1">
                                                     <div className="flex items-center gap-2">
-                                                        <h3 className="font-bold text-gray-200">{title}</h3>
-                                                        <span className="text-[10px] bg-black px-1 rounded text-gray-500 border border-gray-800">x{stats[recipe.statKey!] || 0}</span>
+                                                        <h3 className="font-bold text-sm md:text-base text-gray-200">{title}</h3>
+                                                        {stats[recipe.statKey!] ? (
+                                                            <span className="text-[10px] bg-black px-1 rounded text-gray-500 border border-gray-800">x{stats[recipe.statKey!]}</span>
+                                                        ) : null}
                                                     </div>
-                                                    <p className="text-xs text-gray-500">{desc}</p>
+                                                    <p className="text-[10px] md:text-xs text-gray-500">{desc}</p>
                                                     {isLocked && <div className="text-[10px] text-red-500 mt-1 font-bold">{t.locked_lab} {recipe.reqLevel}</div>}
                                                 </div>
                                             </div>
                                             
-                                            <div className="flex flex-col items-end gap-2">
+                                            <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 w-full sm:w-auto justify-between sm:justify-center">
                                                 {!isLocked && (
-                                                    <button onClick={() => openInfoModal(title, desc, recipe.cost)} className="p-1 text-gray-600 hover:text-white">
+                                                    <button onClick={() => openInfoModal(title, desc, recipe.cost)} className="p-1 text-gray-600 hover:text-white hidden sm:block">
                                                         <Info size={16} />
                                                     </button>
                                                 )}
@@ -1505,7 +1526,7 @@ const App: React.FC = () => {
                                                 <button 
                                                     onClick={() => craftItem(recipe.id)}
                                                     disabled={!canCraft}
-                                                    className={`px-6 py-2 rounded font-bold text-xs ${canCraft ? 'bg-blue-900 hover:bg-blue-800 text-blue-100' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}
+                                                    className={`px-4 py-1.5 md:px-6 md:py-2 rounded font-bold text-[10px] md:text-xs ml-2 sm:ml-0 ${canCraft ? 'bg-blue-900 hover:bg-blue-800 text-blue-100' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}
                                                 >
                                                     {isLocked ? t.locked : t.craft}
                                                 </button>
@@ -1524,26 +1545,26 @@ const App: React.FC = () => {
                                      const canBuy = !isMaxed && cost && canAfford(cost);
 
                                      return (
-                                        <div key={u.id} className={`bg-gray-900 border ${isMaxed ? 'border-green-900/50 opacity-75' : 'border-gray-800'} p-6 rounded-xl flex flex-col gap-4 group hover:border-green-500/30 transition-all`}>
+                                        <div key={u.id} className={`bg-gray-900 border ${isMaxed ? 'border-green-900/50 opacity-75' : 'border-gray-800'} p-4 md:p-6 rounded-xl flex flex-col gap-4 group hover:border-green-500/30 transition-all`}>
                                             <div className="flex justify-between items-start">
-                                                <div className="p-4 bg-black rounded-lg border border-gray-800 text-green-500">
-                                                    <u.icon size={32} />
+                                                <div className="p-3 md:p-4 bg-black rounded-lg border border-gray-800 text-green-500">
+                                                    <u.icon size={24} className="md:w-8 md:h-8" />
                                                 </div>
-                                                <div className="text-xs font-bold text-green-500 bg-green-950/30 px-3 py-1 rounded border border-green-900/50">LEVEL {u.lvl}</div>
+                                                <div className="text-[10px] md:text-xs font-bold text-green-500 bg-green-950/30 px-3 py-1 rounded border border-green-900/50">LEVEL {u.lvl}</div>
                                             </div>
                                             <div>
-                                                <h3 className="text-xl font-bold text-gray-200">{u.title}</h3>
-                                                <p className="text-sm text-gray-500 mt-2">{u.desc}</p>
+                                                <h3 className="text-lg md:text-xl font-bold text-gray-200">{u.title}</h3>
+                                                <p className="text-xs md:text-sm text-gray-500 mt-2">{u.desc}</p>
                                             </div>
-                                            <div className="mt-auto pt-6 border-t border-gray-800">
+                                            <div className="mt-auto pt-4 md:pt-6 border-t border-gray-800">
                                                 {isMaxed ? (
-                                                     <div className="w-full py-3 text-center text-green-400 font-bold bg-green-950/40 rounded border border-green-900">MAXIMUM RESEARCH</div>
+                                                     <div className="w-full py-3 text-center text-green-400 font-bold text-xs bg-green-950/40 rounded border border-green-900">MAXIMUM RESEARCH</div>
                                                 ) : (
                                                     <div className="flex flex-col gap-3">
                                                         {renderCost(cost)}
                                                         <button 
                                                             onClick={() => upgradeBase(u.id)}
-                                                            className={`w-full py-3 rounded font-bold text-sm transition-colors ${canBuy ? 'bg-green-700 hover:bg-green-600 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}
+                                                            className={`w-full py-2 md:py-3 rounded font-bold text-xs md:text-sm transition-colors ${canBuy ? 'bg-green-700 hover:bg-green-600 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}
                                                         >
                                                             {canBuy ? t.research : t.need}
                                                         </button>
@@ -1560,22 +1581,22 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* INVENTORY */}
+        {/* INVENTORY - Updated for Mobile Sizing */}
         {gameState === GameState.INVENTORY && (
             <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 p-2 md:p-8">
-                <div className="w-[95%] max-w-4xl max-h-[85vh] bg-gray-950 border-2 border-gray-800 rounded-xl overflow-y-auto flex flex-col shadow-2xl relative">
-                     <button onClick={toggleInventory} className="absolute top-4 right-4 text-gray-500 hover:text-white z-10"><X size={24} /></button>
-                     <div className="p-6 border-b border-gray-800 flex items-center gap-3">
+                <div className="w-[98%] md:w-[95%] max-w-4xl h-auto max-h-[90vh] bg-gray-950 border-2 border-gray-800 rounded-xl overflow-hidden flex flex-col shadow-2xl relative">
+                     <button onClick={toggleInventory} className="absolute top-2 right-2 md:top-4 md:right-4 text-gray-500 hover:text-white z-10 bg-black/50 rounded-full p-1"><X size={20} /></button>
+                     <div className="p-4 md:p-6 border-b border-gray-800 flex items-center gap-3 shrink-0">
                          <Briefcase className="text-gray-400" />
-                         <h2 className="text-2xl font-black tracking-tighter text-gray-200">{t.inventory}</h2>
+                         <h2 className="text-xl md:text-2xl font-black tracking-tighter text-gray-200">{t.inventory}</h2>
                      </div>
                      
-                     <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 overflow-y-auto">
                          {/* Equipment */}
                          <div>
-                             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-gray-800 pb-2">{t.weapons}</h3>
-                             <div className="space-y-3">
-                                 {stats.unlockedWeapons.length === 0 && <div className="text-gray-600 italic text-sm">{t.inv_empty}</div>}
+                             <h3 className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest mb-2 md:mb-4 border-b border-gray-800 pb-2">{t.weapons}</h3>
+                             <div className="space-y-2 md:space-y-3">
+                                 {stats.unlockedWeapons.length === 0 && <div className="text-gray-600 italic text-xs md:text-sm">{t.inv_empty}</div>}
                                  {stats.unlockedWeapons.map(wId => {
                                      let name = "";
                                      let Icon = Sword;
@@ -1586,23 +1607,23 @@ const App: React.FC = () => {
                                      const isEquipped = stats.equippedWeapon === wId;
                                      
                                      return (
-                                         <div key={wId} className={`flex items-center justify-between p-3 rounded-lg border ${isEquipped ? 'bg-red-950/20 border-red-900/50' : 'bg-gray-900 border-gray-800'}`}>
-                                             <div className="flex items-center gap-3">
-                                                 <Icon size={20} className={isEquipped ? 'text-red-500' : 'text-gray-400'} />
-                                                 <span className={isEquipped ? 'text-red-100 font-bold' : 'text-gray-300'}>{name}</span>
+                                         <div key={wId} className={`flex items-center justify-between p-2 md:p-3 rounded-lg border ${isEquipped ? 'bg-red-950/20 border-red-900/50' : 'bg-gray-900 border-gray-800'}`}>
+                                             <div className="flex items-center gap-2 md:gap-3">
+                                                 <Icon size={18} className={`md:w-5 md:h-5 ${isEquipped ? 'text-red-500' : 'text-gray-400'}`} />
+                                                 <span className={`text-xs md:text-sm ${isEquipped ? 'text-red-100 font-bold' : 'text-gray-300'}`}>{name}</span>
                                              </div>
                                              {isEquipped ? (
                                                  <span className="text-[10px] bg-red-900 px-2 py-1 rounded text-white font-bold">{t.equipped}</span>
                                              ) : (
-                                                 <button onClick={() => equipWeapon(wId)} className="text-xs bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded text-gray-300">{t.equip}</button>
+                                                 <button onClick={() => equipWeapon(wId)} className="text-[10px] md:text-xs bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded text-gray-300">{t.equip}</button>
                                              )}
                                          </div>
                                      );
                                  })}
                              </div>
 
-                             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 mt-8 border-b border-gray-800 pb-2">{t.items}</h3>
-                             <div className="grid grid-cols-2 gap-3">
+                             <h3 className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest mb-2 md:mb-4 mt-6 md:mt-8 border-b border-gray-800 pb-2">{t.items}</h3>
+                             <div className="grid grid-cols-2 gap-2 md:gap-3">
                                  {[
                                      { id: 'repair', count: stats.repairKits, name: t.item_repair, icon: Wrench, action: () => useItem('repair') },
                                      { id: 'tank', count: stats.oxygenTanks, name: t.item_tank, icon: Wind, action: () => useItem('oxygen_tank') },
@@ -1610,16 +1631,16 @@ const App: React.FC = () => {
                                      { id: 'booster', count: stats.immunityBoosters, name: t.item_booster, icon: Shield, action: () => useItem('booster') },
                                      { id: 'purifier', count: stats.purifiers, name: t.item_purifier, icon: Droplet, action: () => useItem('purifier') },
                                  ].map(item => (
-                                     <div key={item.id} className="bg-gray-900 border border-gray-800 p-3 rounded-lg flex flex-col gap-2">
+                                     <div key={item.id} className="bg-gray-900 border border-gray-800 p-2 md:p-3 rounded-lg flex flex-col gap-1 md:gap-2">
                                          <div className="flex justify-between items-start">
-                                             <item.icon size={20} className="text-gray-400" />
-                                             <span className="text-sm font-bold text-gray-200">x{item.count}</span>
+                                             <item.icon size={18} className="text-gray-400 md:w-5 md:h-5" />
+                                             <span className="text-xs md:text-sm font-bold text-gray-200">x{item.count}</span>
                                          </div>
-                                         <div className="text-xs text-gray-400">{item.name}</div>
+                                         <div className="text-[10px] md:text-xs text-gray-400">{item.name}</div>
                                          <button 
                                             onClick={item.action} 
                                             disabled={item.count <= 0}
-                                            className="mt-1 w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-xs py-1 rounded text-gray-300"
+                                            className="mt-1 w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-[10px] md:text-xs py-1 rounded text-gray-300"
                                          >
                                              {t.use}
                                          </button>
@@ -1630,8 +1651,8 @@ const App: React.FC = () => {
                          
                          {/* Resources */}
                          <div>
-                             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-gray-800 pb-2">{t.collected_res}</h3>
-                             <div className="grid grid-cols-2 gap-3">
+                             <h3 className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest mb-2 md:mb-4 border-b border-gray-800 pb-2">{t.collected_res}</h3>
+                             <div className="grid grid-cols-2 gap-2 md:gap-3">
                                  <ResourceItem icon={RefreshCw} count={stats.scraps} label={t.res_scraps} color="text-gray-400" />
                                  <ResourceItem icon={Box} count={stats.iron} label={t.res_iron} color="text-slate-400" />
                                  <ResourceItem icon={Triangle} count={stats.wood} label={t.res_wood} color="text-amber-800" />
@@ -1641,9 +1662,9 @@ const App: React.FC = () => {
                                  <ResourceItem icon={Radiation} count={stats.uranium} label={t.res_uranium} color="text-green-500" />
                              </div>
                              
-                             <div className="mt-8 bg-gray-900/50 p-4 rounded-lg border border-gray-800">
-                                 <h4 className="flex items-center gap-2 text-sm font-bold text-gray-300 mb-2"><HelpCircle size={14}/> {t.suit_diag}</h4>
-                                 <div className="space-y-2 text-xs text-gray-500">
+                             <div className="mt-6 md:mt-8 bg-gray-900/50 p-3 md:p-4 rounded-lg border border-gray-800">
+                                 <h4 className="flex items-center gap-2 text-xs md:text-sm font-bold text-gray-300 mb-2"><HelpCircle size={14}/> {t.suit_diag}</h4>
+                                 <div className="space-y-1 md:space-y-2 text-[10px] md:text-xs text-gray-500">
                                      <div className="flex justify-between"><span>{t.integrity}:</span> <span className="text-red-400">{Math.floor(stats.health)}/100</span></div>
                                      <div className="flex justify-between"><span>{t.oxygen}:</span> <span className="text-cyan-400">{Math.floor(stats.oxygen)}%</span></div>
                                      <div className="flex justify-between"><span>{t.corrosion}:</span> <span className="text-green-500">{Math.floor(stats.infection)}%</span></div>

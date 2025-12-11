@@ -12,6 +12,7 @@ self.addEventListener('install', event => {
       .then(cache => {
         return cache.addAll(urlsToCache);
       })
+      .catch(err => console.error("Cache install failed:", err))
   );
 });
 
@@ -22,7 +23,11 @@ self.addEventListener('fetch', event => {
         if (response) {
           return response;
         }
-        return fetch(event.request);
+        return fetch(event.request).catch(error => {
+            // Return a fallback or just log error to prevent crash
+            console.error("Fetch failed:", error);
+            return new Response("Network error", { status: 408, headers: { "Content-Type": "text/plain" } });
+        });
       })
   );
 });
