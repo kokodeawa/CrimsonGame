@@ -474,6 +474,10 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('es'); 
   const [hasSave, setHasSave] = useState(false);
   
+  // New state for intermittent save notification
+  const [showSaveIndicator, setShowSaveIndicator] = useState(false);
+  const lastSaveNotificationTime = useRef<number>(0);
+
   // Volume increased to 90%
   const [volume, setVolume] = useState({ sfx: 0.90, ambience: 0.90 });
   const [mobileActionMode, setMobileActionMode] = useState<'MINE' | 'ATTACK'>('MINE');
@@ -515,6 +519,15 @@ const App: React.FC = () => {
               const data = { stats, stage: currentStage, timestamp: Date.now() };
               localStorage.setItem(SAVE_KEY, JSON.stringify(data));
               setHasSave(true);
+              
+              // Only show save notification every 60 seconds to avoid annoyance
+              const now = Date.now();
+              if (now - lastSaveNotificationTime.current > 60000) { 
+                  setShowSaveIndicator(true);
+                  lastSaveNotificationTime.current = now;
+                  setTimeout(() => setShowSaveIndicator(false), 2000);
+              }
+
           }, 2000); // Debounce save every 2 seconds
           return () => clearTimeout(timeout);
       }
@@ -1219,8 +1232,8 @@ const App: React.FC = () => {
                      </div>
                      <div className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/50 px-2 py-1 rounded-full">{t.sector}</div>
                      {/* Save Indicator */}
-                     {hasSave && (
-                        <div className="text-[10px] text-green-500 uppercase tracking-widest flex items-center gap-1 bg-black/50 px-2 py-1 rounded-full">
+                     {showSaveIndicator && (
+                        <div className="text-[10px] text-green-500 uppercase tracking-widest flex items-center gap-1 bg-black/50 px-2 py-1 rounded-full animate-pulse">
                             <Save size={10} /> {t.game_saved}
                         </div>
                      )}

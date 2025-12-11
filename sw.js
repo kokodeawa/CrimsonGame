@@ -1,65 +1,53 @@
 
-const CACHE_NAME = 'crimson-cache-v2';
-const urlsToCache = [
-  './',
-  './index.html',
-  './manifest.json'
-];
+const CACHE_NAME = 'crimson-cache-v3';
 
-self.addEventListener('install', event => {
+// Install event: Skip waiting to ensure the new SW activates immediately
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+// Activate event: Clean up old caches
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        // Attempt to cache all, but don't fail installation if one fails (like manifest icons)
-        return Promise.all(
-            urlsToCache.map(url => {
-                return cache.add(url).catch(err => {
-                    console.warn('Failed to cache:', url, err);
-                });
-            })
-        );
-      })
-      .then(() => self.skipWaiting())
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
   );
 });
 
-self.addEventListener('activate', event => {
-    event.waitUntil(self.clients.claim());
-});
+// Fetch event: Network First, falling back to Cache
+self.addEventListener('fetch', (event) => {
+  // Only handle http/https requests
+  if (!event.request.url.startsWith('http')) return;
 
-self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) {
-          return response;
+    fetch(event.request)
+      .then((networkResponse) => {
+        // Check if we received a valid response
+        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+          return networkResponse;
         }
-        return fetch(event.request).then(response => {
-            // Check if we received a valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-            // Clone the response. A response is a stream
-            // and because we want the browser to consume the response
-            // as well as the cache consuming the response, we need
-            // to clone it so we have two streams.
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                if (event.request.url.startsWith('http')) {
-                    cache.put(event.request, responseToCache);
-                }
-              });
 
-            return response;
-        }).catch(error => {
-            console.error("Fetch failed:", error);
-            // Optionally return a fallback page here
-             return new Response("Offline (Network Error)", {
-                 status: 503,
-                 headers: { 'Content-Type': 'text/plain' }
-             });
-        });
+        // Clone the response because it's a stream and can only be consumed once
+        const responseToCache = networkResponse.clone();
+
+        caches.open(CACHE_NAME)
+          .then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+
+        return networkResponse;
+      })
+      .catch(() => {
+        // Network failed, look in cache
+        return caches.match(event.request);
       })
   );
 });

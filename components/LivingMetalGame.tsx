@@ -1,5 +1,4 @@
 
-
 import React, { useRef, useEffect } from 'react';
 import { GameState, Vector2, Particle, LevelObject, PlayerStats, Projectile, Language } from '../types';
 
@@ -675,7 +674,10 @@ export const LivingMetalGame: React.FC<GameProps> = ({
                 default: 
                     type = 'living_metal'; 
                     health = 80;
-                    if (Math.random() < 0.13) { type = 'infected_living_metal'; health = 90; } 
+                    if (Math.random() < 0.13) { 
+                        type = 'infected_living_metal'; 
+                        health = 25; // NERFED FROM 90 TO 25 for easy accidental breaking
+                    } 
                     else if (Math.random() < 0.05) { variant = 1; health = 100; }
                 break; 
             } 
