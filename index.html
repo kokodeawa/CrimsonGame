@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Crimson Inversion</title>
+    
+    <!-- Game Icon (Red Planet) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23050505'/%3E%3Ccircle cx='50' cy='50' r='45' fill='%237f1d1d'/%3E%3Ccircle cx='50' cy='50' r='35' fill='%23dc2626'/%3E%3Cpath d='M20 50 Q 50 80 80 50' stroke='%23450a0a' stroke-width='5' fill='none' /%3E%3Ccircle cx='70' cy='30' r='10' fill='%23450a0a' opacity='0.5'/%3E%3C/svg%3E" />
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23050505'/%3E%3Ccircle cx='50' cy='50' r='45' fill='%237f1d1d'/%3E%3Ccircle cx='50' cy='50' r='35' fill='%23dc2626'/%3E%3Cpath d='M20 50 Q 50 80 80 50' stroke='%23450a0a' stroke-width='5' fill='none' /%3E%3C/svg%3E" />
+    <meta name="theme-color" content="#050505" />
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #050505;
+        font-family: 'Courier New', Courier, monospace;
+        /* Critical for preventing pull-to-refresh and zoom on mobile */
+        touch-action: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      canvas {
+        display: block;
+        /* Critical for pixel art look */
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        touch-action: none;
+      }
+      /* Custom scrollbar for retro feel */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1a1a1a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #881313;
+      }
+
+      /* Lab/Menu Scrollbar Override - Now Gray */
+      .lab-scroll::-webkit-scrollbar-thumb {
+        background: #4b5563; /* gray-600 */
+      }
+      .lab-scroll::-webkit-scrollbar-track {
+        background: #1f2937; /* gray-800 */
+      }
+
+      @keyframes border-pulse-red {
+        0%, 100% {
+          border-color: rgba(127, 29, 29, 0.6);
+          box-shadow: 0 0 10px rgba(220, 38, 38, 0.1);
+        }
+        50% {
+          border-color: rgba(220, 38, 38, 1);
+          box-shadow: 0 0 20px rgba(220, 38, 38, 0.4);
+        }
+      }
+
+      .animate-border-pulse {
+        animation: border-pulse-red 2s infinite ease-in-out;
+      }
+
+      @keyframes border-pulse-green {
+        0%, 100% {
+          border-color: rgba(21, 128, 61, 0.6);
+          box-shadow: 0 0 10px rgba(34, 197, 94, 0.1);
+        }
+        50% {
+          border-color: rgba(34, 197, 94, 1);
+          box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+        }
+      }
+
+      .animate-border-pulse-green {
+        animation: border-pulse-green 2s infinite ease-in-out;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "vite": "https://aistudiocdn.com/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
