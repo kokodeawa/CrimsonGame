@@ -1,3 +1,4 @@
+
 # Simple workflow for deploying static content to GitHub Pages
 name: Deploy static content to Pages
 
@@ -34,7 +35,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
+          # cache: 'npm' # Removed to fix "Dependencies lock file is not found" error
       - name: Install dependencies
         run: npm install
       - name: Build

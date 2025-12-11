@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LivingMetalGame } from './components/LivingMetalGame';
 import { GameState, PlayerStats, Language } from './types';
@@ -466,8 +467,8 @@ const App: React.FC = () => {
   const [interactionTrigger, setInteractionTrigger] = useState(0);
   const [language, setLanguage] = useState<Language>('es'); 
   
-  // Volume increased by ~70% (0.5 -> 0.85)
-  const [volume, setVolume] = useState({ sfx: 0.85, ambience: 0.85 });
+  // Volume increased to 90% (Requested 70% increase from 50% base -> 85%, bumped to 90% for margin)
+  const [volume, setVolume] = useState({ sfx: 0.90, ambience: 0.90 });
   const [mobileActionMode, setMobileActionMode] = useState<'MINE' | 'ATTACK'>('MINE');
 
   // Stage Management
@@ -606,11 +607,11 @@ const App: React.FC = () => {
   };
 
   const toggleSfx = () => {
-      setVolume(prev => ({ ...prev, sfx: prev.sfx > 0 ? 0 : 0.85 }));
+      setVolume(prev => ({ ...prev, sfx: prev.sfx > 0 ? 0 : 0.90 }));
   };
 
   const toggleAmbience = () => {
-      setVolume(prev => ({ ...prev, ambience: prev.ambience > 0 ? 0 : 0.85 }));
+      setVolume(prev => ({ ...prev, ambience: prev.ambience > 0 ? 0 : 0.90 }));
   };
 
   const toggleLanguage = () => {
