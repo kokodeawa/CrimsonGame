@@ -1,6 +1,17 @@
 
 import React, { useRef, useEffect } from 'react';
-import { GameState, Vector2, Particle, LevelObject, PlayerStats, Projectile, Language } from '../types';
+import { GameState, Vector2, Particle, LevelObject, PlayerStats, Projectile, Language, FloatingText } from '../types';
+import { PIXEL_SCALE, BLOCK_SIZE, CHUNK_SIZE, STAGE_CONFIG } from '../game/constants';
+import { 
+    createOffscreenCanvas, 
+    generateGlowSprite, 
+    generateCrackTextures, 
+    generateMetalTexture, 
+    generateResourceTextures, 
+    generatePlayerSprites, 
+    generateSpikyBackground 
+} from '../game/assets';
+import { loadBaseStage, loadMineStage, loadOutsideStage } from '../game/levelGen';
 
 interface GameProps {
   gameState: GameState;
@@ -21,243 +32,7 @@ interface GameProps {
   isLoading: boolean;
 }
 
-const PIXEL_SCALE = 2; 
-const BLOCK_SIZE = 8; 
-const CHUNK_SIZE = 300; // Spatial Grid Chunk Size
-
 type StageType = 'OUTSIDE' | 'BASE' | 'MINE';
-
-interface FloatingText {
-    id: number;
-    x: number;
-    y: number;
-    text: string;
-    life: number;
-    color: string;
-    velocity: number;
-}
-
-const STAGE_CONFIG = {
-    OUTSIDE: { width: 2400, height: 1000 },
-    MINE: { width: 3000, height: 1600 },
-    BASE: { width: 1000, height: 800 }
-};
-
-const createOffscreenCanvas = (w: number, h: number) => {
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const ctx = c.getContext('2d', { alpha: true });
-  if (!ctx) throw new Error("Could not create canvas context");
-  return { canvas: c, ctx: ctx as CanvasRenderingContext2D };
-};
-
-const generateGlowSprite = (radius: number, color: string) => {
-  const size = radius * 2;
-  const { canvas, ctx } = createOffscreenCanvas(size, size);
-  const grad = ctx.createRadialGradient(radius, radius, 1, radius, radius, radius);
-  grad.addColorStop(0, color);
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
-  return canvas;
-};
-
-const generateCrackTextures = () => {
-  const size = BLOCK_SIZE;
-  const stages = 3;
-  const textures = [];
-  for(let i=1; i<=stages; i++) {
-      const { canvas, ctx } = createOffscreenCanvas(size, size);
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for(let j=0; j<i*2; j++) {
-          const x = Math.random() * size;
-          const y = Math.random() * size;
-          ctx.moveTo(x, y);
-          ctx.lineTo(x + (Math.random()-0.5)*6, y + (Math.random()-0.5)*6);
-      }
-      ctx.stroke();
-      textures.push(canvas);
-  }
-  return textures;
-};
-
-const generateMetalTexture = () => {
-  const { canvas, ctx } = createOffscreenCanvas(32, 32);
-  ctx.fillStyle = '#2d0a0a';
-  ctx.fillRect(0, 0, 32, 32);
-  return canvas;
-};
-
-const generateResourceTextures = () => {
-  const textures: Record<string, HTMLCanvasElement> = {};
-  const size = BLOCK_SIZE;
-  const init = (w = size, h = size) => createOffscreenCanvas(w, h);
-  {
-    const { canvas, ctx } = init();
-    ctx.fillStyle = '#2a2a2a'; ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = '#553322'; ctx.fillRect(1, 1, 4, 2);
-    ctx.fillStyle = '#111'; ctx.fillRect(1, 1, 1, 1); ctx.fillRect(4, 1, 1, 1);
-    textures['scrap'] = canvas;
-  }
-  {
-    const { canvas, ctx } = init();
-    ctx.fillStyle = '#222'; ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = '#8899aa'; ctx.fillRect(1, 2, 2, 2); ctx.fillRect(3, 1, 1, 1); ctx.fillRect(2, 4, 2, 1);
-    ctx.fillStyle = '#fff'; ctx.fillRect(2, 3, 1, 1);
-    textures['iron'] = canvas;
-  }
-  {
-    const { canvas, ctx } = init();
-    ctx.fillStyle = '#3e2723'; ctx.fillRect(0, 0, size, size);
-    ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(1, 0); ctx.lineTo(2, size); ctx.moveTo(3, 0); ctx.lineTo(4, size); ctx.moveTo(5, 0); ctx.lineTo(4, size); ctx.stroke();
-    textures['wood'] = canvas;
-  }
-  {
-    const { canvas, ctx } = init();
-    ctx.fillStyle = '#006064'; ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = '#00bcd4'; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(3, 0); ctx.lineTo(0, 3); ctx.fill(); ctx.beginPath(); ctx.moveTo(size,2); ctx.lineTo(3, 3); ctx.lineTo(size, size); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(1, 1, 1, 1);
-    textures['ice'] = canvas;
-  }
-  {
-    // Living Metal - Textured Base
-    const { canvas, ctx } = init();
-    ctx.fillStyle = '#2a0505'; // Deeper base red
-    ctx.fillRect(0, 0, size, size);
-    
-    // Veins / Organic Texture
-    ctx.fillStyle = '#4a1515';
-    ctx.fillRect(0, 0, 2, 1);
-    ctx.fillRect(1, 1, 1, 1);
-    ctx.fillRect(4, 2, 2, 1);
-    ctx.fillRect(3, 3, 1, 1);
-    ctx.fillRect(1, 4, 1, 2);
-    
-    // Dark pores
-    ctx.fillStyle = '#100000';
-    ctx.fillRect(2, 2, 1, 1);
-    ctx.fillRect(5, 5, 1, 1);
-
-    textures['living_metal'] = canvas;
-  }
-  {
-      // Infected Living Metal - TEXTURE REDESIGN
-      const { canvas, ctx } = init();
-      // Base: Dark Violet/Maroon (Bruised/Sickly look)
-      ctx.fillStyle = '#2d0a1e'; 
-      ctx.fillRect(0, 0, size, size);
-      
-      // Details: Neon Pink/Red "Pustules" or "Sores"
-      ctx.fillStyle = '#ff0055';
-      ctx.fillRect(1, 2, 2, 1);
-      ctx.fillRect(4, 1, 1, 1);
-      ctx.fillRect(3, 4, 1, 2);
-      
-      // Core darkness
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(2, 2, 1, 1);
-
-      textures['infected_living_metal'] = canvas;
-  }
-  {
-      // HARDENED METAL WALL TEXTURE
-      const { canvas, ctx } = init(16, 16);
-      ctx.fillStyle = '#1a0505'; 
-      ctx.fillRect(0, 0, 16, 16);
-      ctx.fillStyle = '#300a0a';
-      ctx.fillRect(1, 1, 6, 6); ctx.fillRect(9, 1, 6, 6);
-      ctx.fillRect(1, 9, 6, 6); ctx.fillRect(9, 9, 6, 6);
-      ctx.fillStyle = '#501515';
-      ctx.fillRect(1, 1, 1, 1); ctx.fillRect(6, 1, 1, 1);
-      ctx.fillRect(9, 1, 1, 1); ctx.fillRect(14, 1, 1, 1);
-      ctx.fillRect(1, 9, 1, 1); ctx.fillRect(6, 9, 1, 1);
-      ctx.fillRect(9, 9, 1, 1); ctx.fillRect(14, 9, 1, 1);
-      ctx.fillStyle = '#0a0000';
-      ctx.fillRect(8, 0, 1, 16);
-      ctx.fillRect(0, 8, 16, 1);
-      textures['hardened_metal'] = canvas;
-  }
-  {
-    const { canvas, ctx } = init();
-    ctx.fillStyle = '#151515'; ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = '#252525'; ctx.fillRect(1, 1, 2, 2); ctx.fillRect(3, 3, 2, 2);
-    ctx.fillStyle = '#000'; ctx.fillRect(2, 2, 1, 1);
-    textures['coal'] = canvas;
-  }
-  {
-      const { canvas, ctx } = init();
-      ctx.fillStyle = '#555'; ctx.fillRect(0, 0, size, size);
-      ctx.fillStyle = '#ccc'; ctx.fillRect(1, 1, size-2, size-2);
-      ctx.fillStyle = '#fff'; ctx.fillRect(1, 1, 2, 2);
-      ctx.fillStyle = '#99a'; ctx.fillRect(size-2, size-2, 1, 1);
-      textures['titanium'] = canvas;
-  }
-  {
-      const { canvas, ctx } = init();
-      ctx.fillStyle = '#1a201a'; ctx.fillRect(0, 0, size, size);
-      ctx.fillStyle = '#39ff14'; ctx.fillRect(1, 3, 4, 1); ctx.fillRect(3, 1, 1, 4);
-      ctx.fillStyle = '#000'; ctx.fillRect(2, 2, 1, 1);
-      ctx.fillStyle = '#ccffcc'; ctx.fillRect(3, 3, 1, 1);
-      textures['uranium'] = canvas;
-  }
-  return textures;
-};
-
-const generatePlayerSprites = () => {
-  const { canvas, ctx } = createOffscreenCanvas(48, 20);
-  const drawScavenger = (offsetX: number, frame: number) => {
-    ctx.save();
-    ctx.translate(offsetX, 0);
-    const suitDark = '#2a2a35'; const suitLight = '#4a4a55'; const highlight = '#606070'; const visor = '#00eaff'; const backpack = '#353535'; const redLight = '#ff4444';
-    ctx.fillStyle = backpack; ctx.fillRect(2, 5, 4, 8); 
-    ctx.fillStyle = redLight; ctx.fillRect(3, 6, 1, 1); 
-    ctx.fillStyle = suitDark; ctx.fillRect(5, 6, 6, 7); 
-    ctx.fillStyle = suitLight; ctx.fillRect(6, 6, 4, 6); 
-    ctx.fillStyle = suitLight; ctx.fillRect(5, 1, 6, 5); 
-    ctx.fillStyle = highlight; ctx.fillRect(6, 1, 4, 1); 
-    ctx.fillStyle = visor; ctx.fillRect(9, 3, 2, 2); 
-    ctx.fillStyle = '#0099bb'; ctx.fillRect(8, 3, 1, 2); 
-    if (frame === 0) {
-        ctx.fillStyle = suitDark; ctx.fillRect(7, 7, 2, 4); 
-        ctx.fillStyle = '#222'; ctx.fillRect(7, 11, 2, 2); 
-    } else if (frame === 1) {
-        ctx.fillStyle = suitDark; ctx.fillRect(4, 8, 2, 3); 
-        ctx.fillStyle = '#222'; ctx.fillRect(3, 10, 2, 2);
-    } else if (frame === 2) {
-        ctx.fillStyle = suitDark; ctx.fillRect(8, 8, 2, 3);
-        ctx.fillStyle = '#222'; ctx.fillRect(9, 9, 2, 2);
-    }
-    ctx.fillStyle = suitDark;
-    if (frame === 0) {
-        ctx.fillRect(6, 13, 2, 3); ctx.fillRect(9, 13, 2, 3); 
-        ctx.fillStyle = '#222'; ctx.fillRect(5, 16, 3, 2); ctx.fillRect(9, 16, 3, 2);
-    } else if (frame === 1) {
-        ctx.fillRect(5, 13, 2, 2); ctx.fillRect(9, 13, 2, 3); 
-        ctx.fillStyle = '#222'; ctx.fillRect(4, 15, 3, 2); ctx.fillRect(10, 16, 2, 1); 
-    } else if (frame === 2) {
-        ctx.fillRect(6, 13, 2, 3); ctx.fillRect(9, 13, 2, 2); 
-        ctx.fillStyle = '#222'; ctx.fillRect(5, 16, 2, 1); ctx.fillRect(10, 15, 3, 2); 
-    }
-    ctx.restore();
-  };
-  drawScavenger(0, 0); drawScavenger(16, 1); drawScavenger(32, 2);
-  return canvas;
-};
-
-const generateSpikyBackground = (width: number, height: number, color: string) => {
-  const { canvas, ctx } = createOffscreenCanvas(width, height);
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.moveTo(0, 0);
-  for (let x = 0; x <= width; x += 20) { const h = Math.random() * 80 + 20; ctx.lineTo(x, h); ctx.lineTo(x + 10, 0); }
-  ctx.lineTo(width, 0); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(0, height);
-  for (let x = 0; x <= width; x += 30) { const h = Math.random() * 100 + 40; ctx.lineTo(x, height - h); ctx.lineTo(x + 15, height); }
-  ctx.lineTo(width, height); ctx.fill();
-  return canvas;
-};
 
 export const LivingMetalGame: React.FC<GameProps> = ({ 
     gameState, stats, onUpdateStats, onToggleBase, 
@@ -497,7 +272,13 @@ export const LivingMetalGame: React.FC<GameProps> = ({
     clearObjects(); 
     particlesRef.current = []; projectilesRef.current = []; floatingTextsRef.current = []; 
     const config = STAGE_CONFIG[stageRef.current]; const w = config.width; const h = config.height;
-    if (stageRef.current === 'OUTSIDE') loadOutsideStage(w, h); else if (stageRef.current === 'BASE') loadBaseStage(w, h); else if (stageRef.current === 'MINE') loadMineStage(w, h);
+    
+    // Wrapper for addObject to match signature
+    const addObj = (obj: LevelObject) => addObject(obj);
+
+    if (stageRef.current === 'OUTSIDE') loadOutsideStage(w, h, addObj); 
+    else if (stageRef.current === 'BASE') loadBaseStage(w, h, statsRef.current, addObj); 
+    else if (stageRef.current === 'MINE') loadMineStage(w, h, statsRef.current, addObj);
     
     // Immediate camera center on load
     const p = playerRef.current;
@@ -506,185 +287,6 @@ export const LivingMetalGame: React.FC<GameProps> = ({
         const viewportH = canvasRef.current.height / PIXEL_SCALE;
         cameraRef.current.x = p.pos.x - viewportW / 2 + p.width / 2;
         cameraRef.current.y = p.pos.y - viewportH / 2 + p.height / 2;
-    }
-  };
-
-  const loadOutsideStage = (w: number, h: number) => {
-    addObject({ x: -100, y: -20, width: w + 200, height: 60, type: 'solid', id: 'ceil_main' });
-    const airlockX = 400; addObject({ x: airlockX, y: -20, width: 32, height: 50, type: 'base_entrance', id: 'airlock_outside' });
-  };
-
-  const loadBaseStage = (w: number, h: number) => {
-    const expansion = statsRef.current.baseExpansionLevel || 0;
-    const roomW = 340 + (expansion * 150); 
-    const roomH = 300; 
-    const roomX = (w - roomW) / 2; 
-    const roomY = (h - roomH) / 2;
-
-    addObject({ x: roomX, y: roomY + roomH, width: roomW, height: 32, type: 'solid', id: 'floor' });
-    addObject({ x: roomX, y: roomY - 32, width: 32, height: 32, type: 'solid', id: 'ceil' });
-    addObject({ x: roomX - 32, y: roomY - 32, width: 32, height: roomH + 64, type: 'solid', id: 'wall_l' });
-    addObject({ x: roomX + roomW, y: roomY - 32, width: 32, height: roomH + 64, type: 'solid', id: 'wall_r' });
-    
-    // Terminal
-    addObject({ x: roomX + roomW - 60, y: roomY + roomH - 20, width: 20, height: 20, type: 'solid', id: 'terminal' });
-    
-    // Airlock
-    addObject({ x: roomX + 10, y: roomY + roomH - 40, width: 24, height: 40, type: 'base_entrance', id: 'airlock_inside' });
-
-    // Laboratory Station
-    const labX = roomX + 120;
-    addObject({ x: labX, y: roomY + roomH - 30, width: 30, height: 30, type: 'solid', id: 'lab_station' });
-
-    // Decontamination Unit
-    if (statsRef.current.hasDecontaminationUnit) {
-        addObject({ x: roomX + roomW - 120, y: roomY + roomH - 50, width: 30, height: 50, type: 'solid', id: 'decon_machine' });
-    }
-
-    // Storage
-    const storeLvl = statsRef.current.storageLevel || 0;
-    if (storeLvl > 0) {
-        for (let i = 0; i < storeLvl; i++) {
-             const crateSize = 24;
-             const xPos = roomX + 50 + (i * 30);
-             if (xPos < labX - 20) {
-                 addObject({ x: xPos, y: roomY + roomH - crateSize, width: crateSize, height: crateSize, type: 'solid', id: `storage_${i}` });
-             }
-        }
-    }
-  };
-
-  const loadMineStage = (w: number, h: number) => {
-    const floorHeight = 32; const ceilingHeight = 100; const startX = 150; const endX = w - 20; const startY = ceilingHeight;
-    const approximateAvailableHeight = (h - floorHeight) - startY; 
-    const rows = Math.floor(approximateAvailableHeight / BLOCK_SIZE);
-    const gridBottomY = startY + (rows * BLOCK_SIZE);
-
-    addObject({ x: -100, y: gridBottomY, width: w + 200, height: 200, type: 'solid', id: 'mine_floor' });
-    addObject({ x: -100, y: -100, width: w + 200, height: 100, type: 'solid', id: 'mine_ceil' });
-    addObject({ x: -32, y: 0, width: 32, height: h, type: 'solid', id: 'mine_wall_l' });
-    addObject({ x: w, y: 0, width: 32, height: h, type: 'solid', id: 'mine_wall_r' });
-    addObject({ x: 20, y: gridBottomY - 60, width: 32, height: 60, type: 'base_entrance', id: 'mine_door_inside' });
-
-    const cols = Math.floor((endX - startX) / BLOCK_SIZE);
-    const grid: number[][] = Array(cols).fill(0).map(() => Array(rows).fill(1));
-
-    for(let x=0; x<cols; x++) { for(let y=0; y<rows; y++) { if (x === cols-1) grid[x][y] = 2; else if (Math.random() < 0.38) grid[x][y] = 2; } }
-    for(let i=0; i<4; i++) { const nextGrid = grid.map(row => [...row]); for(let x=1; x<cols-1; x++) { for(let y=1; y<rows-1; y++) { let neighbors = 0; for(let dx=-1; dx<=1; dx++) { for(let dy=-1; dy<=1; dy++) { if (grid[x+dx][y+dy] === 2) neighbors++; } } if (neighbors >= 5) nextGrid[x][y] = 2; else nextGrid[x][y] = 1; } } for(let x=0; x<cols; x++) { for(let y=0; y<rows; y++) { grid[x][y] = nextGrid[x][y]; } } }
-
-    const cosineInterpolate = (a: number, b: number, t: number) => { const ft = t * Math.PI; const f = (1 - Math.cos(ft)) * 0.5; return a * (1 - f) + b * f; };
-    const noiseScale = 0.35; const stretchY = 0.5; const noiseW = Math.ceil(cols * noiseScale) + 1; const noiseH = Math.ceil(rows * noiseScale * stretchY) + 1; const noiseLattice = new Float32Array(noiseW * noiseH).map(() => Math.random());
-    const getNoise = (x: number, y: number) => { const nx = x * noiseScale; const ny = y * noiseScale * stretchY; const x0 = Math.floor(nx); const x1 = x0 + 1; const y0 = Math.floor(ny); const y1 = y0 + 1; const sx = nx - x0; const sy = ny - y0; const n00 = noiseLattice[y0 * noiseW + x0] || 0; const n10 = noiseLattice[y0 * noiseW + x1] || 0; const n01 = noiseLattice[y1 * noiseW + x0] || 0; const n11 = noiseLattice[y1 * noiseW + x1] || 0; const ix0 = cosineInterpolate(n00, n10, sx); const ix1 = cosineInterpolate(n01, n11, sx); return cosineInterpolate(ix0, ix1, sy); };
-
-    for(let x=0; x<cols; x++) { for(let y=0; y<rows; y++) { const n = getNoise(x, y); if (n > 0.6) { if (grid[x][y] === 1) { grid[x][y] = 0; } else if (grid[x][y] === 2 && n > 0.8) { grid[x][y] = 0; } } } }
-    for(let x=0; x<15; x++) { for(let y=0; y<rows; y++) { if (grid[x][y] === 2) grid[x][y] = 1; if (y > rows - 4) grid[x][y] = 1; } }
-
-    const scannerLevel = statsRef.current.oreScannerLevel || 1;
-    const spawnVein = (centerX: number, centerY: number, typeCode: number, size: number) => { for(let i=0; i<size; i++) { const ox = centerX + Math.floor((Math.random() - 0.5) * 4); const oy = centerY + Math.floor((Math.random() - 0.5) * 4); if (ox >= 0 && ox < cols && oy >= 0 && oy < rows) { if (grid[ox][oy] === 1) { grid[ox][oy] = typeCode; } } } };
-
-    for (let x = 0; x < cols; x += 3) {
-      for (let y = 0; y < rows; y += 3) {
-        const depthRatio = x / cols;
-        const luck = Math.random() + (scannerLevel * 0.05);
-        if (Math.random() > 0.85) {
-          let veinType = 1;
-          let veinSize = 6; 
-          
-          if (depthRatio > 0.7) {
-            const r = Math.random();
-            if (luck > 0.9 && r > 0.7) { veinType = 8; veinSize = 10; } // Titanium
-            else if (luck > 0.8 && r > 0.6) { veinType = 9; veinSize = 8; } // Uranium
-            else if (r > 0.5) { veinType = 4; veinSize = 15; } // Ice
-            else { veinType = 5; veinSize = 13; } // Coal
-          } else if (depthRatio > 0.3) {
-            const r = Math.random();
-            if (luck > 0.8 && r > 0.85) { veinType = 7; veinSize = 10; } // Iron
-            else if (r > 0.55) { veinType = 6; veinSize = 8; } // Wood
-            else if (r > 0.25) { veinType = 5; veinSize = 12; } // Coal
-            else { veinType = 3; veinSize = 10; } // Scrap
-          } else {
-            if (x < 30) {
-              const r = Math.random();
-              if (r > 0.9) { veinType = 4; veinSize = 12; } // Ice
-              else if (r > 0.7) { veinType = 6; veinSize = 6; } // Wood
-              else if (r > 0.5) { veinType = 5; veinSize = 6; } // Coal
-              else if (r > 0.2) { veinType = 3; veinSize = 10; } // Scrap
-              else { veinType = 7; veinSize = 5; } // Iron
-            } else {
-              const r = Math.random();
-              if (r > 0.6) { veinType = 6; veinSize = 8; } // Wood
-              else if (r > 0.3) { veinType = 5; veinSize = 10; } // Coal
-              else { veinType = 3; veinSize = 10; } // Scrap
-            }
-          }
-          if (veinType !== 1) { spawnVein(x, y, veinType, veinSize); }
-        }
-      }
-    }
-
-    const processed = new Uint8Array(cols * rows);
-    for (let y = 0; y < rows; y++) { 
-        for (let x = 0; x < cols; x++) { 
-            if (processed[x * rows + y]) continue; 
-            const cellType = grid[x][y]; 
-            if (cellType === 0) continue; 
-            
-            if (cellType === 2) { 
-                let width = 1; 
-                while (x + width < cols && grid[x + width][y] === 2 && !processed[(x + width) * rows + y]) { width++; } 
-                for(let k=0; k<width; k++) { processed[(x+k)*rows + y] = 1; } 
-                const worldX = startX + x * BLOCK_SIZE; 
-                const worldY = startY + y * BLOCK_SIZE; 
-                addObject({ x: worldX, y: worldY, width: width * BLOCK_SIZE, height: BLOCK_SIZE, type: 'solid', id: `wall_${x}_${y}` }); 
-                x += width - 1; 
-                continue; 
-            } 
-            
-            let size = 1; 
-            if (x + 3 < cols && y + 3 < rows) { 
-                let match = true; 
-                for(let dx=0; dx<4; dx++) { for(let dy=0; dy<4; dy++) { if (processed[(x+dx)*rows + (y+dy)] || grid[x+dx][y+dy] !== cellType) { match = false; break; } } if (!match) break; } 
-                if (match) size = 4; 
-            } 
-            if (size === 1 && x + 1 < cols && y + 1 < rows) { 
-                let match = true; 
-                for(let dx=0; dx<2; dx++) { for(let dy=0; dy<2; dy++) { if (processed[(x+dx)*rows + (y+dy)] || grid[x+dx][y+dy] !== cellType) { match = false; break; } } if (!match) break; } 
-                if (match) size = 2; 
-            } 
-            
-            for(let dx=0; dx<size; dx++) { for(let dy=0; dy<size; dy++) { processed[(x+dx)*rows + (y+dy)] = 1; } } 
-            
-            const worldX = startX + x * BLOCK_SIZE; 
-            const worldY = startY + y * BLOCK_SIZE; 
-            const pixelSize = size * BLOCK_SIZE; 
-            
-            let type: 'living_metal' | 'wood' | 'scrap' | 'iron' | 'ice' | 'coal' | 'titanium' | 'uranium' | 'infected_living_metal' = 'living_metal'; 
-            let health = 80 * (size * size * 0.5); 
-    
-            let variant = 0;
-
-            switch (cellType) { 
-                case 3: type = 'scrap'; health = 40; break; 
-                case 4: type = 'ice'; health = 90; break; 
-                case 5: type = 'coal'; health = 50; break; 
-                case 6: type = 'wood'; health = 60; break; 
-                case 7: type = 'iron'; health = 120; break; 
-                case 8: type = 'titanium'; health = 300; break; 
-                case 9: type = 'uranium'; health = 150; break; 
-                default: 
-                    type = 'living_metal'; 
-                    health = 80;
-                    if (Math.random() < 0.13) { 
-                        type = 'infected_living_metal'; 
-                        health = 25; // NERFED FROM 90 TO 25 for easy accidental breaking
-                    } 
-                    else if (Math.random() < 0.05) { variant = 1; health = 100; }
-                break; 
-            } 
-            if (size > 1) health *= 2; 
-            
-            addObject({ x: worldX, y: worldY, width: pixelSize, height: pixelSize, type: 'destructible', id: `ore_${x}_${y}`, resourceType: type, health: health, maxHealth: health, variant: variant }); 
-        } 
     }
   };
 

@@ -100,3 +100,13 @@ export interface LevelObject {
   maxHealth?: number; 
   variant?: number;
 }
+
+export interface FloatingText {
+    id: number;
+    x: number;
+    y: number;
+    text: string;
+    life: number;
+    color: string;
+    velocity: number;
+}

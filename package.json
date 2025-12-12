@@ -1,9 +1,10 @@
+
 {
   "name": "crimson-inversion",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "homepage": ".",
+  "homepage": "https://kokodeawa.github.io/CrimsonGame/",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
