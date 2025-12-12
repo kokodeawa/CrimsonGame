@@ -548,7 +548,7 @@ const App: React.FC = () => {
       else if (upgradeId === 'drill_speed') currentLevel = stats.miningSpeedLevel;
       else if (upgradeId === 'scanner_luck') currentLevel = stats.oreScannerLevel;
       else if (upgradeId === 'resistance') currentLevel = stats.infectionResistanceLevel;
-      else if (upgradeId === 'radar') currentLevel = stats.unlockedRooms.includes('radar') ? 1 : 0;
+      else if (upgradeId === 'radar') currentLevel = stats.unlockedRooms?.includes('radar') ? 1 : 0;
       else if (upgradeId === 'jump_boots') currentLevel = stats.highJumpBoots ? 1 : 0;
       else if (upgradeId === 'fabricator') currentLevel = stats.inventoryLevel;
       else if (upgradeId === 'base_expand') currentLevel = stats.baseExpansionLevel + 1;
@@ -718,7 +718,19 @@ const App: React.FC = () => {
     if (save) {
         try {
             const data = JSON.parse(save);
-            if (data.stats) setStats(data.stats);
+            if (data.stats) {
+                // MERGE SAVE DATA WITH INITIAL STATS
+                // This prevents crashes if new fields (like 'unlockedRooms') are missing in old saves.
+                setStats({
+                    ...INITIAL_STATS, // Start with all default fields
+                    ...data.stats,    // Overwrite with saved values
+                    // Explicitly handle array merging if necessary, but simple overwrite is usually fine
+                    // unless we want to ADD default items to an existing array.
+                    // For unlockedRooms, if it exists in save use it, otherwise use default.
+                    unlockedRooms: data.stats.unlockedRooms || INITIAL_STATS.unlockedRooms,
+                    unlockedWeapons: data.stats.unlockedWeapons || INITIAL_STATS.unlockedWeapons
+                });
+            }
             if (data.stage) {
                 setCurrentStage(data.stage);
                 setRequestedStage(data.stage);
@@ -1086,8 +1098,8 @@ const App: React.FC = () => {
     } else if (type === 'scanner_luck') {
         setStats(prev => ({ ...prev, oreScannerLevel: prev.oreScannerLevel + 1 }));
     } else if (type === 'radar') {
-        if (!stats.unlockedRooms.includes('radar')) {
-             setStats(prev => ({ ...prev, unlockedRooms: [...prev.unlockedRooms, 'radar'] }));
+        if (!stats.unlockedRooms?.includes('radar')) {
+             setStats(prev => ({ ...prev, unlockedRooms: [...(prev.unlockedRooms || []), 'radar'] }));
              isInstall = true;
         }
     } else if (type === 'jump_boots') {
@@ -1463,7 +1475,7 @@ const App: React.FC = () => {
                                     { id: 'drill_radius', icon: CircleDashed, title: t.upg_radius, desc: t.upg_radius_desc, lvl: stats.miningRadiusLevel, max: 5 },
                                     { id: 'drill_reach', icon: Move, title: t.upg_reach, desc: t.upg_reach_desc, lvl: stats.miningReachLevel, max: 5 },
                                     { id: 'scanner_luck', icon: Scan, title: t.upg_scanner, desc: t.upg_scanner_desc, lvl: stats.oreScannerLevel, max: 5 },
-                                    { id: 'radar', icon: Crosshair, title: t.upg_radar, desc: t.upg_radar_desc, lvl: stats.unlockedRooms.includes('radar') ? 1 : 0, max: 1 },
+                                    { id: 'radar', icon: Crosshair, title: t.upg_radar, desc: t.upg_radar_desc, lvl: stats.unlockedRooms?.includes('radar') ? 1 : 0, max: 1 },
                                     { id: 'fabricator', icon: Hammer, title: t.upg_fabricator, desc: t.upg_fabricator_desc, lvl: stats.inventoryLevel, max: 1 },
                                     // Base Upgrades
                                     { id: 'base_expand', icon: Home, title: t.upg_expand, desc: t.upg_expand_desc, lvl: stats.baseExpansionLevel + 1, max: 5 },

@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'crimson-pwa-v12-fix-url';
+const CACHE_NAME = 'crimson-pwa-v13-fix-crash';
 
 // Files we want to cache immediately on install
 const PRECACHE_URLS = [
