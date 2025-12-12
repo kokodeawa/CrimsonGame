@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'crimson-cache-v9';
+const CACHE_NAME = 'crimson-cache-v10';
 
 // Install event: Skip waiting to ensure the new SW activates immediately
 self.addEventListener('install', (event) => {
