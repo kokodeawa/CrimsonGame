@@ -316,7 +316,8 @@ const TRANSLATIONS = {
         res_wood: "Fossil Wood",
         res_ice: "Ice Crystals",
         res_titanium: "Titanium",
-        res_uranium: "Uranium"
+        res_uranium: "Uranium",
+        superuser: "SUPER USER (DEV)"
     },
     es: {
         title: "Inversión Carmesí",
@@ -450,7 +451,8 @@ const TRANSLATIONS = {
         res_wood: "Madera Fósil",
         res_ice: "Cristal Hielo",
         res_titanium: "Titanio",
-        res_uranium: "Uranio"
+        res_uranium: "Uranio",
+        superuser: "SUPER USUARIO (DEV)"
     }
 };
 
@@ -822,6 +824,59 @@ const App: React.FC = () => {
           purifiers: 0
       }));
       setRequestedStage('BASE'); 
+      setGameState(GameState.PLAYING);
+  };
+
+  const activateSuperUser = () => {
+      playUiSound('upgrade');
+      setStats(prev => ({
+          ...prev,
+          // Max Stats
+          health: 100,
+          maxHealth: 1000,
+          oxygen: 100,
+          infection: 0,
+          
+          // Infinite Resources
+          scraps: 9999,
+          wood: 9999,
+          iron: 9999,
+          ice: 9999,
+          coal: 9999,
+          titanium: 9999,
+          uranium: 9999,
+          
+          // Max Consumables
+          repairKits: 100,
+          oxygenTanks: 100,
+          healthInjections: 100,
+          immunityBoosters: 100,
+          purifiers: 100,
+          
+          // Max Upgrades
+          miningRadiusLevel: 5,
+          miningReachLevel: 5,
+          miningSpeedLevel: 5,
+          oreScannerLevel: 5,
+          infectionResistanceLevel: 5,
+          baseExpansionLevel: 5,
+          loadingSpeedLevel: 5,
+          storageLevel: 5,
+          labLevel: 5,
+          inventoryLevel: 1, // Max for fabricator
+
+          // Unlocks
+          highJumpBoots: true,
+          unlockedLantern: true,
+          unlockedLab: true,
+          hasDecontaminationUnit: true,
+          unlockedWeapons: ['sword', 'force', 'laser'],
+          equippedWeapon: 'laser',
+          unlockedRooms: ['shelter', 'radar']
+      }));
+      
+      setToast({ message: "SUPER USER ACTIVATED", visible: true });
+      setTimeout(() => setToast(null), 2000);
       setGameState(GameState.PLAYING);
   };
 
@@ -1784,6 +1839,10 @@ const App: React.FC = () => {
                                 <span className="text-[10px] text-gray-400">{t.ambience}</span>
                              </button>
                         </div>
+                        {/* SUPER USER BUTTON */}
+                        <button onClick={activateSuperUser} className="w-full bg-purple-900/50 hover:bg-purple-800 border border-purple-500 text-purple-100 font-bold py-3 rounded-lg flex items-center justify-center gap-2 mt-4 transition-all hover:scale-105 shadow-[0_0_15px_rgba(147,51,234,0.3)]">
+                            <Zap size={20} /> {t.superuser}
+                        </button>
                     </div>
                 </div>
             </div>
