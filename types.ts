@@ -11,7 +11,8 @@ export enum GameState {
   MENU = 'MENU',
   PLAYING = 'PLAYING',
   BASE_MENU = 'BASE_MENU',
-  LAB_MENU = 'LAB_MENU', // New Menu State
+  LAB_MENU = 'LAB_MENU', 
+  STORAGE_MENU = 'STORAGE_MENU', // New Menu State
   PAUSED = 'PAUSED',
   LOCATION_SELECT = 'LOCATION_SELECT',
   GAME_OVER = 'GAME_OVER',
@@ -31,17 +32,24 @@ export interface PlayerStats {
   oreScannerLevel: number; 
   highJumpBoots: boolean; 
   inventoryLevel: number; 
-  unlockedLantern: boolean; 
-  unlockedLab: boolean; // New: Required to open Lab Menu
+  
+  // Lantern Updates
+  lanterns: number; 
+  lanternTimeLeft: number; 
+  
+  // New Unique Item
+  teleporters: number;
+
+  unlockedLab: boolean; 
   
   // New Upgrades
-  baseExpansionLevel: number; // 0 = Tiny, 1 = Small, 2 = Medium, etc.
-  loadingSpeedLevel: number; // Reduces travel time
-  hasDecontaminationUnit: boolean; // Base healing
-  storageLevel: number; // Visual storage crates
-  labLevel: number; // New: For researching potions
+  baseExpansionLevel: number; 
+  loadingSpeedLevel: number; 
+  hasDecontaminationUnit: boolean; 
+  storageLevel: number; 
+  labLevel: number; 
   
-  // Resources
+  // Resources (Inventory)
   scraps: number; 
   wood: number;
   iron: number;
@@ -49,8 +57,32 @@ export interface PlayerStats {
   coal: number;
   titanium: number; 
   uranium: number; 
+  rareSlime: number; // New Resource
+
+  // Stored Resources (Safe in Base)
+  storedResources: {
+      scraps: number;
+      wood: number;
+      iron: number;
+      ice: number;
+      coal: number;
+      titanium: number;
+      uranium: number;
+      rareSlime: number;
+  };
+
+  // Stored Consumables
+  storedItems: {
+      lanterns: number;
+      teleporters: number;
+      repairKits: number;
+      oxygenTanks: number;
+      healthInjections: number;
+      immunityBoosters: number;
+      purifiers: number;
+  };
   
-  // Craftables & Weapons
+  // Craftables & Weapons (Inventory)
   repairKits: number;
   oxygenTanks: number; 
   healthInjections: number; 
@@ -61,6 +93,24 @@ export interface PlayerStats {
 
   baseLevel: number;
   unlockedRooms: string[];
+}
+
+export interface Enemy {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  vx: number;
+  vy: number;
+  type: 'small' | 'medium' | 'large';
+  health: number;
+  maxHealth: number;
+  damage: number;
+  speed: number;
+  animTimer: number;
+  facingRight: boolean;
+  isGrounded: boolean;
 }
 
 export interface Particle {

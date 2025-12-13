@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LivingMetalGame } from './components/LivingMetalGame';
 import { GameState, PlayerStats, Language } from './types';
-import { Play, Database, Shield, Lock, Hammer, Zap, Wind, Pickaxe, Droplet, Triangle, Scan, CircleDashed, Move, Flame, Eye, Pause, Hand, Hexagon, Radiation, Swords, Crosshair, AlertCircle, X, Skull, ArrowUpFromLine, Volume2, VolumeX, Volume1, Globe, Biohazard, RefreshCw, Briefcase, Wrench, HeartPulse, Box, Sword, Lightbulb, Cylinder, Syringe, Info, HelpCircle, Backpack, Home, ArrowRight, Loader2, Container, ChevronsRight, FlaskConical, TestTube, Cpu, Save } from 'lucide-react';
+import { Play, Database, Shield, Lock, Hammer, Zap, Wind, Pickaxe, Droplet, Triangle, Scan, CircleDashed, Move, Flame, Eye, Pause, Hand, Hexagon, Radiation, Swords, Crosshair, AlertCircle, X, Skull, ArrowUpFromLine, Volume2, VolumeX, Volume1, Globe, Biohazard, RefreshCw, Briefcase, Wrench, HeartPulse, Box, Sword, Lightbulb, Cylinder, Syringe, Info, HelpCircle, Backpack, Home, ArrowRight, Loader2, Container, ChevronsRight, FlaskConical, TestTube, Cpu, Save, Terminal, ArrowRightLeft, ArrowLeft, Download, Upload, FastForward } from 'lucide-react';
 
 const INITIAL_STATS: PlayerStats = {
   health: 100,
@@ -17,8 +17,10 @@ const INITIAL_STATS: PlayerStats = {
   oreScannerLevel: 1,
   highJumpBoots: false,
   inventoryLevel: 0, 
-  unlockedLantern: false,
-  unlockedLab: false, // Starts locked
+  lanterns: 0,
+  lanternTimeLeft: 0,
+  teleporters: 0, 
+  unlockedLab: false, 
   baseExpansionLevel: 0,
   loadingSpeedLevel: 1,
   hasDecontaminationUnit: false,
@@ -31,6 +33,13 @@ const INITIAL_STATS: PlayerStats = {
   coal: 0,
   titanium: 0,
   uranium: 0,
+  rareSlime: 0, // New Resource
+  storedResources: {
+      scraps: 0, wood: 0, iron: 0, ice: 0, coal: 0, titanium: 0, uranium: 0, rareSlime: 0
+  },
+  storedItems: {
+      lanterns: 0, teleporters: 0, repairKits: 0, oxygenTanks: 0, healthInjections: 0, immunityBoosters: 0, purifiers: 0
+  },
   repairKits: 0,
   oxygenTanks: 0,
   healthInjections: 0,
@@ -43,10 +52,9 @@ const INITIAL_STATS: PlayerStats = {
 };
 
 // Define Upgrade Costs
-type ResourceCost = { scraps?: number; iron?: number; wood?: number; ice?: number; coal?: number; titanium?: number; uranium?: number };
+type ResourceCost = { scraps?: number; iron?: number; wood?: number; ice?: number; coal?: number; titanium?: number; uranium?: number; rareSlime?: number };
 
 const BASE_UPGRADE_COSTS: Record<string, ResourceCost> = {
-    // Increased costs (~20-30%)
     oxygen: { scraps: 200, ice: 25 },
     drill_radius: { scraps: 400, coal: 35 },
     drill_reach: { scraps: 250, wood: 25 },
@@ -56,133 +64,45 @@ const BASE_UPGRADE_COSTS: Record<string, ResourceCost> = {
     jump_boots: { scraps: 800, iron: 80, ice: 50 },
     resistance: { scraps: 600, iron: 70, titanium: 10 },
     fabricator: { scraps: 700, iron: 80, wood: 40 }, 
-    
-    // New Upgrades
     base_expand: { scraps: 1000, iron: 150, titanium: 30 },
     decon_unit: { scraps: 800, iron: 80, uranium: 15 },
     hyperloop: { scraps: 600, iron: 80, coal: 80 }, 
-    
-    // CHEAPER STORAGE (Requested)
     storage_bay: { scraps: 80, wood: 20 },
-
-    // Lab Research
     lab_research: { scraps: 300, ice: 50, coal: 20 },
-    
-    // Lab Key
     lab_key: { scraps: 150, iron: 40, coal: 10 }
 };
 
-// Crafting Recipe Types
 interface BaseRecipe {
     id: string;
     cost: ResourceCost;
     output: number;
-    reqLevel: number; // For Fabricator: Inventory Level. For Lab: Lab Level.
+    reqLevel: number;
 }
-
 interface ItemRecipe extends BaseRecipe {
     type: 'consumable' | 'upgrade';
     statKey: keyof PlayerStats;
     weaponId?: never;
 }
-
 interface WeaponRecipe extends BaseRecipe {
     type: 'weapon';
     weaponId: string;
     statKey?: never;
 }
-
 type CraftingRecipe = ItemRecipe | WeaponRecipe;
 
-// Crafting Recipes
 const CRAFTING_RECIPES: CraftingRecipe[] = [
-    // Consumables (Moved to Lab)
-    {
-        id: 'repair_kit',
-        type: 'consumable',
-        cost: { scraps: 15, iron: 5 },
-        output: 1,
-        statKey: 'repairKits',
-        reqLevel: 1 // Basic
-    },
-    {
-        id: 'oxygen_tank',
-        type: 'consumable',
-        cost: { ice: 3, scraps: 6 }, // Reduced cost by ~40% (was 5 ice, 10 scraps)
-        output: 1,
-        statKey: 'oxygenTanks',
-        reqLevel: 1 // Basic
-    },
-    {
-        id: 'health_injection',
-        type: 'consumable',
-        cost: { iron: 10, ice: 20 },
-        output: 1,
-        statKey: 'healthInjections',
-        reqLevel: 2 // Requires Research
-    },
-    {
-        id: 'purifier',
-        type: 'consumable',
-        cost: { coal: 15, ice: 10 },
-        output: 1,
-        statKey: 'purifiers',
-        reqLevel: 2 // Requires Research
-    },
-    {
-        id: 'immunity_booster',
-        type: 'consumable',
-        cost: { scraps: 10, coal: 5, ice: 5 },
-        output: 1,
-        statKey: 'immunityBoosters',
-        reqLevel: 3 // Advanced Research
-    },
-
-    // Fabricator Items (Engineering)
-    {
-        id: 'lantern',
-        type: 'upgrade',
-        cost: { wood: 20, coal: 10, iron: 10 },
-        output: 1,
-        statKey: 'unlockedLantern',
-        reqLevel: 0
-    },
-    {
-        id: 'lab_key',
-        type: 'upgrade',
-        cost: { scraps: 150, iron: 40, coal: 10 },
-        output: 1,
-        statKey: 'unlockedLab',
-        reqLevel: 0
-    },
-    // Weapons
-    {
-        id: 'weapon_sword',
-        type: 'weapon',
-        weaponId: 'sword',
-        cost: { scraps: 100, iron: 40, wood: 20 },
-        output: 1,
-        reqLevel: 1
-    },
-    {
-        id: 'weapon_force',
-        type: 'weapon',
-        weaponId: 'force',
-        cost: { scraps: 200, titanium: 10 },
-        output: 1,
-        reqLevel: 1
-    },
-    {
-        id: 'weapon_laser',
-        type: 'weapon',
-        weaponId: 'laser',
-        cost: { scraps: 400, iron: 50, uranium: 10, titanium: 10 },
-        output: 1,
-        reqLevel: 1
-    }
+    { id: 'repair_kit', type: 'consumable', cost: { scraps: 15, iron: 5 }, output: 1, statKey: 'repairKits', reqLevel: 1 },
+    { id: 'oxygen_tank', type: 'consumable', cost: { ice: 3, scraps: 6 }, output: 1, statKey: 'oxygenTanks', reqLevel: 1 },
+    { id: 'health_injection', type: 'consumable', cost: { iron: 10, ice: 20 }, output: 1, statKey: 'healthInjections', reqLevel: 2 },
+    { id: 'purifier', type: 'consumable', cost: { coal: 15, ice: 10 }, output: 1, statKey: 'purifiers', reqLevel: 2 },
+    { id: 'immunity_booster', type: 'consumable', cost: { scraps: 10, coal: 5, ice: 5 }, output: 1, statKey: 'immunityBoosters', reqLevel: 3 },
+    { id: 'lantern', type: 'consumable', cost: { scraps: 5, coal: 2 }, output: 1, statKey: 'lanterns', reqLevel: 0 },
+    { id: 'lab_key', type: 'upgrade', cost: { scraps: 150, iron: 40, coal: 10 }, output: 1, statKey: 'unlockedLab', reqLevel: 0 },
+    { id: 'weapon_sword', type: 'weapon', weaponId: 'sword', cost: { scraps: 100, iron: 40, wood: 20 }, output: 1, reqLevel: 1 },
+    { id: 'weapon_force', type: 'weapon', weaponId: 'force', cost: { scraps: 200, titanium: 10 }, output: 1, reqLevel: 1 },
+    { id: 'weapon_laser', type: 'weapon', weaponId: 'laser', cost: { scraps: 400, iron: 50, uranium: 10, titanium: 10 }, output: 1, reqLevel: 1 }
 ];
 
-// Translations
 const TRANSLATIONS = {
     en: {
         title: "Crimson Inversion",
@@ -197,7 +117,7 @@ const TRANSLATIONS = {
         language: "LANGUAGE",
         resume_mission: "RESUME MISSION",
         you_died: "YOU DIED",
-        integrity_failed: "SUIT INTEGRITY FAILED. RESOURCES LOST.",
+        integrity_failed: "SUIT INTEGRITY FAILED. INVENTORY LOST.",
         respawn: "RESPAWN AT BASE",
         deployment: "TRAVEL",
         surface: "SURFACE",
@@ -257,29 +177,33 @@ const TRANSLATIONS = {
         pressurizing: "PRESSURIZING...",
         sanitizing: "SANITIZING...",
         arriving: "ARRIVING...",
-        // Items
+        storage: "BASE STORAGE",
+        deposit: "DEPOSIT",
+        withdraw: "WITHDRAW",
+        deposit_all: "DEPOSIT ALL",
+        withdraw_all: "WITHDRAW ALL",
         item_lantern: "Cave Lantern",
-        item_lantern_desc: "Increases visibility in dark zones.",
+        item_lantern_desc: "2min light source. Stackable.",
+        item_teleporter: "Base Teleporter",
+        item_teleporter_desc: "Instant teleport to Base. Single use.",
         item_lab_key: "Control Panel",
         item_lab_key_desc: "Fixes the Bio-Lab Table.",
         item_repair: "Repair Kit",
         item_repair_desc: "Restores 25% Integrity.",
         item_tank: "Oxygen Tank",
-        item_tank_desc: "Restores ~25% Oxygen (+7s).",
+        item_tank_desc: "Restores ~25% Oxygen.",
         item_booster: "Immunity Booster",
         item_booster_desc: "Reduces Infection by 15.",
         item_injection: "Cure Injection",
         item_injection_desc: "Restores 30% Health.",
         item_purifier: "Purifier",
         item_purifier_desc: "Removes 30% Infection.",
-        // Weapons
         wpn_sword: "Plasma Sword",
         wpn_sword_desc: "Melee. High Damage.",
         wpn_force: "Force Gauntlet",
         wpn_force_desc: "Short range shockwave.",
         wpn_laser: "Laser Pistol",
         wpn_laser_desc: "High fire rate. Low dmg.",
-        // Upgrades
         upg_fabricator: "Adv. Fabricator",
         upg_fabricator_desc: "Unlocks advanced blueprints.",
         upg_oxygen: "O2 Recirculator",
@@ -298,7 +222,6 @@ const TRANSLATIONS = {
         upg_radar_desc: "Reveal hazard locations.",
         upg_resistance: "Lead Plating",
         upg_resistance_desc: "Slows infection rate (+10% / lvl).",
-        // New Upgrades Translations
         upg_expand: "Base Expansion",
         upg_expand_desc: "Increases internal base size.",
         upg_decon: "Decontamination Unit",
@@ -309,7 +232,6 @@ const TRANSLATIONS = {
         upg_storage_desc: "Adds visual storage units to base.",
         upg_lab: "Lab Research",
         upg_lab_desc: "Unlocks advanced potion recipes.",
-        // Resources
         res_scraps: "Scraps",
         res_coal: "Coal",
         res_iron: "Iron Ore",
@@ -317,7 +239,10 @@ const TRANSLATIONS = {
         res_ice: "Ice Crystals",
         res_titanium: "Titanium",
         res_uranium: "Uranium",
-        superuser: "SUPER USER (DEV)"
+        res_rareSlime: "Rare Slime",
+        superuser: "SUPER USER (DEV)",
+        cheat_code: "ACCESS CODE",
+        redeem: "EXECUTE"
     },
     es: {
         title: "Inversión Carmesí",
@@ -332,7 +257,7 @@ const TRANSLATIONS = {
         language: "IDIOMA",
         resume_mission: "REANUDAR MISIÓN",
         you_died: "HAS MUERTO",
-        integrity_failed: "FALLO DE INTEGRIDAD. RECURSOS PERDIDOS.",
+        integrity_failed: "FALLO DE INTEGRIDAD. INVENTARIO PERDIDO.",
         respawn: "REAPARECER EN BASE",
         deployment: "VIAJE",
         surface: "SUPERFICIE",
@@ -392,29 +317,33 @@ const TRANSLATIONS = {
         pressurizing: "PRESURIZANDO...",
         sanitizing: "DESINFECTANDO...",
         arriving: "LLEGANDO...",
-        // Items
-        item_lantern: "Linterna Minera",
-        item_lantern_desc: "Aumenta la visibilidad en zonas oscuras.",
+        storage: "ALMACÉN BASE",
+        deposit: "DEPOSITAR",
+        withdraw: "RETIRAR",
+        deposit_all: "TODO",
+        withdraw_all: "TODO",
+        item_lantern: "Linterna",
+        item_lantern_desc: "Luz por 2min. Acumulable.",
+        item_teleporter: "Teletransportador",
+        item_teleporter_desc: "Teletransporte instantáneo. Un uso.",
         item_lab_key: "Panel de Control",
         item_lab_key_desc: "Repara la mesa de laboratorio.",
         item_repair: "Kit Reparación",
         item_repair_desc: "Restaura 25% Integridad.",
         item_tank: "Tanque O2",
-        item_tank_desc: "Restaura ~25% Oxígeno (+7s).",
+        item_tank_desc: "Restaura ~25% Oxígeno.",
         item_booster: "Inmunizador",
         item_booster_desc: "Reduce Infección en 15.",
         item_injection: "Inyección Cura",
         item_injection_desc: "Restaura 30% Salud.",
         item_purifier: "Purificador",
         item_purifier_desc: "Elimina 30% de Corrosión.",
-        // Weapons
         wpn_sword: "Espada Plasma",
         wpn_sword_desc: "Melee. Daño Alto.",
         wpn_force: "Guante Fuerza",
         wpn_force_desc: "Onda de choque corta.",
         wpn_laser: "Pistola Láser",
         wpn_laser_desc: "Alta cadencia. Daño bajo.",
-        // Upgrades
         upg_fabricator: "Fabricador Av.",
         upg_fabricator_desc: "Desbloquea planos avanzados.",
         upg_oxygen: "Recirculador O2",
@@ -433,7 +362,6 @@ const TRANSLATIONS = {
         upg_radar_desc: "Revela ubicaciones peligrosas.",
         upg_resistance: "Blindaje de Plomo",
         upg_resistance_desc: "Frena la infección (+10% / lvl).",
-        // New Upgrades Translations
         upg_expand: "Expansión de Base",
         upg_expand_desc: "Aumenta el tamaño interno de la base.",
         upg_decon: "Unidad Descontaminación",
@@ -444,7 +372,6 @@ const TRANSLATIONS = {
         upg_storage_desc: "Añade unidades visuales de almacenamiento.",
         upg_lab: "Nivel de Laboratorio",
         upg_lab_desc: "Desbloquea recetas avanzadas de pociones.",
-        // Resources
         res_scraps: "Chatarra",
         res_coal: "Carbón",
         res_iron: "Hierro",
@@ -452,7 +379,10 @@ const TRANSLATIONS = {
         res_ice: "Cristal Hielo",
         res_titanium: "Titanio",
         res_uranium: "Uranio",
-        superuser: "SUPER USUARIO (DEV)"
+        res_rareSlime: "Moco Raro",
+        superuser: "SUPER USER (DEV)",
+        cheat_code: "CÓDIGO DE ACCESO",
+        redeem: "EJECUTAR"
     }
 };
 
@@ -463,7 +393,8 @@ const RESOURCE_CONFIG: Record<string, { icon: any, color: string }> = {
     ice: { icon: Droplet, color: "text-cyan-300" },
     coal: { icon: Lightbulb, color: "text-gray-600" },
     titanium: { icon: Hexagon, color: "text-white" },
-    uranium: { icon: Radiation, color: "text-green-500" }
+    uranium: { icon: Radiation, color: "text-green-500" },
+    rareSlime: { icon: FlaskConical, color: "text-lime-400" }
 };
 
 const SAVE_KEY = 'crimson_save';
@@ -476,15 +407,12 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('es'); 
   const [hasSave, setHasSave] = useState(false);
   
-  // New state for intermittent save notification
   const [showSaveIndicator, setShowSaveIndicator] = useState(false);
   const lastSaveNotificationTime = useRef<number>(0);
 
-  // Volume increased to 90%
   const [volume, setVolume] = useState({ sfx: 0.90, ambience: 0.90 });
   const [mobileActionMode, setMobileActionMode] = useState<'MINE' | 'ATTACK'>('MINE');
 
-  // Stage Management
   const [currentStage, setCurrentStage] = useState<'OUTSIDE' | 'MINE' | 'BASE'>('BASE');
   const [requestedStage, setRequestedStage] = useState<'OUTSIDE' | 'MINE' | 'BASE' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -495,16 +423,16 @@ const App: React.FC = () => {
 
   const [infoModal, setInfoModal] = useState<{ title: string; desc: string; cost: ResourceCost; missing?: string[] } | null>(null);
   
-  // Base UI Tab State
   const [baseTab, setBaseTab] = useState<'upgrades' | 'fabrication'>('upgrades');
   const [labTab, setLabTab] = useState<'brewing' | 'research'>('brewing');
+  
+  const [cheatCode, setCheatCode] = useState("");
 
   const uiAudioCtxRef = useRef<AudioContext | null>(null);
   const statsUpdateThrottleRef = useRef<number>(0);
 
   const t = TRANSLATIONS[language];
 
-  // Check for save on load
   useEffect(() => {
     try {
         const savedData = localStorage.getItem(SAVE_KEY);
@@ -516,13 +444,15 @@ const App: React.FC = () => {
 
   // Auto-Save Effect
   useEffect(() => {
-      if (gameState === GameState.PLAYING || gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU || gameState === GameState.INVENTORY) {
+      // PENALIZATION: Do NOT save in the mine. If user quits, they lose mine progress.
+      if (currentStage === 'MINE') return;
+
+      if (gameState === GameState.PLAYING || gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU || gameState === GameState.INVENTORY || gameState === GameState.STORAGE_MENU) {
           const timeout = setTimeout(() => {
               const data = { stats, stage: currentStage, timestamp: Date.now() };
               localStorage.setItem(SAVE_KEY, JSON.stringify(data));
               setHasSave(true);
               
-              // Only show save notification every 60 seconds to avoid annoyance
               const now = Date.now();
               if (now - lastSaveNotificationTime.current > 60000) { 
                   setShowSaveIndicator(true);
@@ -530,18 +460,16 @@ const App: React.FC = () => {
                   setTimeout(() => setShowSaveIndicator(false), 2000);
               }
 
-          }, 2000); // Debounce save every 2 seconds
+          }, 2000); 
           return () => clearTimeout(timeout);
       }
   }, [stats, currentStage, gameState]);
 
-  // Helper to calculate dynamic cost based on current level
   const getDynamicCost = (upgradeId: string): ResourceCost => {
       const baseCost = BASE_UPGRADE_COSTS[upgradeId];
       if (!baseCost) return {};
 
       let currentLevel = 1;
-      // Map upgrade ID to stat key
       if (upgradeId === 'oxygen') currentLevel = stats.oxygenLevel;
       else if (upgradeId === 'drill_radius') currentLevel = stats.miningRadiusLevel;
       else if (upgradeId === 'drill_reach') currentLevel = stats.miningReachLevel;
@@ -558,7 +486,17 @@ const App: React.FC = () => {
       else if (upgradeId === 'lab_research') currentLevel = stats.labLevel;
       else if (upgradeId === 'lab_key') currentLevel = stats.unlockedLab ? 1 : 0;
 
-      const multiplier = 1 + ((currentLevel - 1) * 0.5);
+      // Progressive Percentage Scaling
+      // Level 1: Base Cost
+      // Level 2: Base Cost + 10%
+      // Level 3: Base Cost + 10% + 15%
+      // Level 4: Base Cost + 10% + 15% + 20%
+      let multiplier = 1;
+      let increment = 0.10; // Start at 10%
+      for (let i = 1; i < currentLevel; i++) {
+          multiplier += increment;
+          increment += 0.05; // Increase increment by 5% each level
+      }
 
       const scaledCost: ResourceCost = {};
       Object.keys(baseCost).forEach(key => {
@@ -580,7 +518,7 @@ const App: React.FC = () => {
     }
   };
 
-  const playUiSound = (type: 'upgrade' | 'install' | 'click' | 'craft' | 'ui_open' | 'ui_close' | 'error') => {
+  const playUiSound = (type: 'upgrade' | 'install' | 'click' | 'craft' | 'ui_open' | 'ui_close' | 'error' | 'teleport') => {
       initUiAudio();
       if (!uiAudioCtxRef.current || volume.sfx <= 0) return;
       const ctx = uiAudioCtxRef.current;
@@ -647,6 +585,14 @@ const App: React.FC = () => {
           gain.gain.linearRampToValueAtTime(0, now + 0.2);
           osc.start(now);
           osc.stop(now + 0.2);
+      } else if (type === 'teleport') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(100, now);
+          osc.frequency.exponentialRampToValueAtTime(1500, now + 0.8);
+          gain.gain.setValueAtTime(0.30 * vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+          osc.start(now);
+          osc.stop(now + 0.8);
       }
   };
 
@@ -663,13 +609,12 @@ const App: React.FC = () => {
       setLanguage(prev => prev === 'en' ? 'es' : 'en');
   };
 
-  // Global Key Handler for Escape/Pause
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (isLoading) return; // Block input during load
+        if (isLoading) return; 
         if (e.code === 'Escape') {
-            setInfoModal(null); // Fix dark screen bug if modal is stuck
-            if (gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU) {
+            setInfoModal(null); 
+            if (gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU || gameState === GameState.STORAGE_MENU) {
                 toggleBaseUI(false);
             } else if (gameState === GameState.LOCATION_SELECT || gameState === GameState.INVENTORY) {
                 playUiSound('click');
@@ -681,16 +626,14 @@ const App: React.FC = () => {
             }
         }
         
-        // E key -> Inventory
         if (e.code === 'KeyE') {
              if (gameState === GameState.PLAYING || gameState === GameState.INVENTORY) {
                 toggleInventory();
             }
         }
         
-        // F key -> Interact (Close menu if open)
         if (e.code === 'KeyF') {
-             if (gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU) {
+             if (gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU || gameState === GameState.STORAGE_MENU) {
                 toggleBaseUI(false);
             }
              else if (gameState === GameState.LOCATION_SELECT || gameState === GameState.INVENTORY) {
@@ -707,8 +650,8 @@ const App: React.FC = () => {
   const handleStart = () => {
     initUiAudio();
     playUiSound('click');
-    setStats(INITIAL_STATS); // Reset stats for new game
-    setRequestedStage('BASE'); // Reset position
+    setStats(INITIAL_STATS); 
+    setRequestedStage('BASE'); 
     setGameState(GameState.PLAYING);
   };
 
@@ -719,16 +662,14 @@ const App: React.FC = () => {
         try {
             const data = JSON.parse(save);
             if (data.stats) {
-                // MERGE SAVE DATA WITH INITIAL STATS
-                // This prevents crashes if new fields (like 'unlockedRooms') are missing in old saves.
                 setStats({
-                    ...INITIAL_STATS, // Start with all default fields
-                    ...data.stats,    // Overwrite with saved values
-                    // Explicitly handle array merging if necessary, but simple overwrite is usually fine
-                    // unless we want to ADD default items to an existing array.
-                    // For unlockedRooms, if it exists in save use it, otherwise use default.
+                    ...INITIAL_STATS, 
+                    ...data.stats, 
                     unlockedRooms: data.stats.unlockedRooms || INITIAL_STATS.unlockedRooms,
-                    unlockedWeapons: data.stats.unlockedWeapons || INITIAL_STATS.unlockedWeapons
+                    unlockedWeapons: data.stats.unlockedWeapons || INITIAL_STATS.unlockedWeapons,
+                    // Ensure stored resources exist for old saves
+                    storedResources: data.stats.storedResources || INITIAL_STATS.storedResources,
+                    storedItems: data.stats.storedItems || INITIAL_STATS.storedItems
                 });
             }
             if (data.stage) {
@@ -745,30 +686,35 @@ const App: React.FC = () => {
     }
   };
 
-  // Throttled stats update to prevent React churn
   const handleUpdateStats = useCallback((newStats: Partial<PlayerStats>) => {
     const now = Date.now();
-    // Immediate update for critical non-numeric or small changes, throttle rapid numeric updates like oxygen/health
     if (now - statsUpdateThrottleRef.current > 100 || 
         newStats.equippedWeapon || 
         newStats.unlockedWeapons || 
         (newStats.scraps !== undefined) || 
         (newStats.wood !== undefined) || 
         (newStats.iron !== undefined) ||
-        (newStats.oxygen === 100) // Force immediate full oxygen reset
+        (newStats.teleporters !== undefined) ||
+        (newStats.rareSlime !== undefined) ||
+        (newStats.lanternTimeLeft !== undefined) || 
+        (newStats.oxygen === 100)
        ) {
         setStats((prev) => ({ ...prev, ...newStats }));
         statsUpdateThrottleRef.current = now;
     }
   }, []);
 
-  const toggleBaseUI = (isOpen: boolean, type: 'engineering' | 'lab' = 'engineering') => {
+  const toggleBaseUI = (isOpen: boolean, type: 'engineering' | 'lab' | 'storage' = 'engineering') => {
     if (isOpen) {
         if (type === 'engineering') {
             playUiSound('ui_open');
             handleUpdateStats({ oxygen: 100 });
             setGameState(GameState.BASE_MENU);
             setBaseTab('upgrades');
+        } else if (type === 'storage') {
+            playUiSound('ui_open');
+            handleUpdateStats({ oxygen: 100 });
+            setGameState(GameState.STORAGE_MENU);
         } else {
             // Lab Check
             if (stats.unlockedLab) {
@@ -793,7 +739,7 @@ const App: React.FC = () => {
   };
 
   const toggleInventory = () => {
-      initUiAudio(); // Ensure context is ready on mobile tap
+      initUiAudio(); 
       if (gameState === GameState.INVENTORY) {
           playUiSound('ui_close');
           setGameState(GameState.PLAYING);
@@ -805,11 +751,37 @@ const App: React.FC = () => {
 
   const togglePause = () => {
     playUiSound('click');
+    setCheatCode(""); 
     if (gameState === GameState.PLAYING) {
       setGameState(GameState.PAUSED);
     } else if (gameState === GameState.PAUSED) {
       setGameState(GameState.PLAYING);
     }
+  };
+  
+  const redeemCheatCode = () => {
+      if (cheatCode === "3213321456") {
+          playUiSound('upgrade');
+          setStats(prev => ({
+              ...prev,
+              scraps: 99999,
+              iron: 99999,
+              wood: 99999,
+              ice: 99999,
+              coal: 99999,
+              titanium: 99999,
+              uranium: 99999,
+              rareSlime: 999,
+              teleporters: 5
+          }));
+          setToast({ message: "UNLIMITED RESOURCES GRANTED", visible: true });
+          setTimeout(() => setToast(null), 2500);
+          setCheatCode("");
+      } else {
+          playUiSound('error');
+          setToast({ message: "INVALID CODE", visible: true });
+          setTimeout(() => setToast(null), 2000);
+      }
   };
 
   const handleGameOver = () => {
@@ -822,73 +794,13 @@ const App: React.FC = () => {
           health: prev.maxHealth,
           oxygen: 100,
           infection: 0,
-          scraps: 0, 
-          wood: 0, 
-          iron: 0, 
-          ice: 0, 
-          coal: 0, 
-          titanium: 0, 
-          uranium: 0,
-          repairKits: 0,
-          oxygenTanks: 0,
-          healthInjections: 0,
-          immunityBoosters: 0,
-          purifiers: 0
+          // PENALTY: Lose inventory items
+          scraps: 0, wood: 0, iron: 0, ice: 0, coal: 0, titanium: 0, uranium: 0, rareSlime: 0,
+          repairKits: 0, oxygenTanks: 0, healthInjections: 0, immunityBoosters: 0, purifiers: 0,
+          lanterns: 0, teleporters: 0, // Lost items too
+          // Stored items remain safe
       }));
       setRequestedStage('BASE'); 
-      setGameState(GameState.PLAYING);
-  };
-
-  const activateSuperUser = () => {
-      playUiSound('upgrade');
-      setStats(prev => ({
-          ...prev,
-          // Max Stats
-          health: 100,
-          maxHealth: 1000,
-          oxygen: 100,
-          infection: 0,
-          
-          // Infinite Resources
-          scraps: 9999,
-          wood: 9999,
-          iron: 9999,
-          ice: 9999,
-          coal: 9999,
-          titanium: 9999,
-          uranium: 9999,
-          
-          // Max Consumables
-          repairKits: 100,
-          oxygenTanks: 100,
-          healthInjections: 100,
-          immunityBoosters: 100,
-          purifiers: 100,
-          
-          // Max Upgrades
-          miningRadiusLevel: 5,
-          miningReachLevel: 5,
-          miningSpeedLevel: 5,
-          oreScannerLevel: 5,
-          infectionResistanceLevel: 5,
-          baseExpansionLevel: 5,
-          loadingSpeedLevel: 5,
-          storageLevel: 5,
-          labLevel: 5,
-          inventoryLevel: 1, // Max for fabricator
-
-          // Unlocks
-          highJumpBoots: true,
-          unlockedLantern: true,
-          unlockedLab: true,
-          hasDecontaminationUnit: true,
-          unlockedWeapons: ['sword', 'force', 'laser'],
-          equippedWeapon: 'laser',
-          unlockedRooms: ['shelter', 'radar']
-      }));
-      
-      setToast({ message: "SUPER USER ACTIVATED", visible: true });
-      setTimeout(() => setToast(null), 2000);
       setGameState(GameState.PLAYING);
   };
 
@@ -907,7 +819,6 @@ const App: React.FC = () => {
       setLoadingProgress(0);
 
       const speedLvl = stats.loadingSpeedLevel || 1;
-      // Faster levels = less delay. Level 1 = 5s, Level 5 = 1s
       const delay = Math.max(1000, 5000 - ((speedLvl - 1) * 1000));
       const interval = 50;
       const steps = delay / interval;
@@ -932,6 +843,7 @@ const App: React.FC = () => {
       if (cost.coal && stats.coal < (cost.coal || 0)) return false;
       if (cost.titanium && stats.titanium < (cost.titanium || 0)) return false;
       if (cost.uranium && stats.uranium < (cost.uranium || 0)) return false;
+      if (cost.rareSlime && stats.rareSlime < (cost.rareSlime || 0)) return false;
       return true;
   };
 
@@ -944,6 +856,7 @@ const App: React.FC = () => {
       if (cost.coal && stats.coal < (cost.coal || 0)) missing.push(`${(cost.coal || 0) - stats.coal} ${t.res_coal}`);
       if (cost.titanium && stats.titanium < (cost.titanium || 0)) missing.push(`${(cost.titanium || 0) - stats.titanium} ${t.res_titanium}`);
       if (cost.uranium && stats.uranium < (cost.uranium || 0)) missing.push(`${(cost.uranium || 0) - stats.uranium} ${t.res_uranium}`);
+      if (cost.rareSlime && stats.rareSlime < (cost.rareSlime || 0)) missing.push(`${(cost.rareSlime || 0) - stats.rareSlime} ${t.res_rareSlime}`);
       return missing;
   };
 
@@ -975,6 +888,7 @@ const App: React.FC = () => {
           coal: prev.coal - (cost.coal || 0),
           titanium: prev.titanium - (cost.titanium || 0),
           uranium: prev.uranium - (cost.uranium || 0),
+          rareSlime: prev.rareSlime - (cost.rareSlime || 0),
       }));
   };
 
@@ -1007,6 +921,7 @@ const App: React.FC = () => {
              }));
           }
       } else {
+          // Consumables (now includes lantern)
           const statKey = recipe.statKey;
           if (statKey) {
              setStats(prev => ({
@@ -1025,7 +940,7 @@ const App: React.FC = () => {
       }));
   };
 
-  const useItem = (type: 'repair' | 'booster' | 'oxygen_tank' | 'injection' | 'purifier') => {
+  const useItem = (type: 'repair' | 'booster' | 'oxygen_tank' | 'injection' | 'purifier' | 'lantern' | 'teleporter') => {
       if (type === 'repair') {
           if (stats.repairKits > 0 && stats.health < stats.maxHealth) {
               playUiSound('install');
@@ -1052,6 +967,8 @@ const App: React.FC = () => {
                   oxygenTanks: prev.oxygenTanks - 1,
                   oxygen: Math.min(100, prev.oxygen + 25)
               }));
+              setToast({ message: "OXYGEN RESTORED", visible: true });
+              setTimeout(() => setToast(null), 1500);
           }
       } else if (type === 'injection') {
            if (stats.healthInjections > 0 && stats.health < stats.maxHealth) {
@@ -1071,7 +988,75 @@ const App: React.FC = () => {
                   infection: Math.max(0, prev.infection - 30)
               }));
           }
+      } else if (type === 'lantern') {
+          if (stats.lanterns > 0) {
+              playUiSound('install');
+              setStats(prev => ({
+                  ...prev,
+                  lanterns: prev.lanterns - 1,
+                  lanternTimeLeft: 120 // 2 minutes
+              }));
+              setToast({ message: "LANTERN ACTIVATED (120s)", visible: true });
+              setTimeout(() => setToast(null), 1500);
+          }
+      } else if (type === 'teleporter') {
+           if (stats.teleporters > 0 && currentStage !== 'BASE') {
+               playUiSound('teleport'); // Or a specific sound
+               setStats(prev => ({
+                   ...prev,
+                   teleporters: prev.teleporters - 1
+               }));
+               setRequestedStage('BASE');
+               setGameState(GameState.PLAYING);
+           }
       }
+  };
+
+  const depositItem = (key: string, amount: number, isResource: boolean) => {
+      playUiSound('click');
+      setStats(prev => {
+          const newStats = { ...prev };
+          if (isResource) {
+              const rKey = key as keyof typeof prev.storedResources;
+              if (prev[rKey] >= amount) {
+                  // @ts-ignore
+                  newStats[rKey] = prev[rKey] - amount;
+                  newStats.storedResources = { ...prev.storedResources, [rKey]: prev.storedResources[rKey] + amount };
+              }
+          } else {
+               const iKey = key as keyof typeof prev.storedItems;
+               // @ts-ignore
+               if (prev[iKey] >= amount) {
+                   // @ts-ignore
+                   newStats[iKey] = prev[iKey] - amount;
+                   newStats.storedItems = { ...prev.storedItems, [iKey]: prev.storedItems[iKey] + amount };
+               }
+          }
+          return newStats;
+      });
+  };
+
+  const withdrawItem = (key: string, amount: number, isResource: boolean) => {
+      playUiSound('click');
+      setStats(prev => {
+          const newStats = { ...prev };
+          if (isResource) {
+              const rKey = key as keyof typeof prev.storedResources;
+              if (prev.storedResources[rKey] >= amount) {
+                  // @ts-ignore
+                  newStats[rKey] = prev[rKey] + amount;
+                  newStats.storedResources = { ...prev.storedResources, [rKey]: prev.storedResources[rKey] - amount };
+              }
+          } else {
+               const iKey = key as keyof typeof prev.storedItems;
+               if (prev.storedItems[iKey] >= amount) {
+                   // @ts-ignore
+                   newStats[iKey] = prev[iKey] + amount;
+                   newStats.storedItems = { ...prev.storedItems, [iKey]: prev.storedItems[iKey] - amount };
+               }
+          }
+          return newStats;
+      });
   };
 
   const upgradeBase = (type: string) => {
@@ -1130,10 +1115,10 @@ const App: React.FC = () => {
   };
 
   const ResourceItem = ({ icon: Icon, count, label, color = "text-gray-400" }: any) => (
-      <div className="flex items-center gap-2 bg-gray-900/90 p-2 rounded border border-gray-700 shadow-sm">
-          <Icon size={16} className={color} />
-          <span className="font-bold">{count}</span>
-          <span className="text-xs text-gray-500 hidden sm:inline">{label}</span>
+      <div className="flex items-center gap-1.5 bg-gray-900/80 p-1.5 rounded border border-gray-700/50 shadow-sm backdrop-blur-sm">
+          <Icon size={14} className={color} />
+          <span className="font-bold text-xs">{count}</span>
+          <span className="text-[10px] text-gray-500 hidden sm:inline">{label}</span>
       </div>
   );
 
@@ -1158,7 +1143,16 @@ const App: React.FC = () => {
 
   const isBaseOpen = gameState === GameState.BASE_MENU;
   const isLabOpen = gameState === GameState.LAB_MENU;
-  const showBaseOrLab = isBaseOpen || isLabOpen;
+  const isStorageOpen = gameState === GameState.STORAGE_MENU;
+  const showBaseOrLab = isBaseOpen || isLabOpen || isStorageOpen;
+
+  // Format Lantern Time
+  const formatTime = (seconds: number) => {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden select-none text-white font-mono" onContextMenu={e => e.preventDefault()}>
@@ -1248,83 +1242,98 @@ const App: React.FC = () => {
         )}
 
         {/* HUD - Always visible in PLAYING/BASE */}
-        {(gameState === GameState.PLAYING || gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU || gameState === GameState.INVENTORY || gameState === GameState.LOCATION_SELECT) && (
+        {(gameState === GameState.PLAYING || gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU || gameState === GameState.STORAGE_MENU || gameState === GameState.INVENTORY || gameState === GameState.LOCATION_SELECT) && (
             <div className="absolute inset-0 pointer-events-none">
-                {/* Top Left - Vitals & Mobile Inventory */}
-                <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-auto">
-                    {/* Compact vital bars for mobile (w-16) */}
-                    <div className="flex items-center gap-2 bg-black/60 p-2 border border-gray-800 backdrop-blur-sm rounded-lg">
-                        <HeartPulse className="text-red-500" size={20} />
-                        <div className="w-16 sm:w-32 h-3 bg-gray-800 rounded overflow-hidden">
+                {/* LANTERN DISPLAY - CENTER TOP */}
+                {stats.lanternTimeLeft > 0 && (
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-auto flex flex-col items-center">
+                         <div className="flex items-center gap-2 bg-black/60 border-2 border-yellow-600/50 backdrop-blur-md px-4 py-1.5 rounded-full shadow-[0_0_15px_rgba(255,200,0,0.3)]">
+                             <Lightbulb className="text-yellow-400 animate-pulse" size={20} />
+                             <span className="font-mono text-lg font-bold text-yellow-100 tracking-wider drop-shadow-md">
+                                 {formatTime(stats.lanternTimeLeft)}
+                             </span>
+                         </div>
+                    </div>
+                )}
+
+                {/* Top Left - Vitals & Mobile Inventory - COMPACT MODE */}
+                <div className="absolute top-2 left-2 flex flex-col gap-1.5 pointer-events-auto">
+                    {/* Compact vital bars for mobile */}
+                    <div className="flex items-center gap-1.5 bg-black/40 p-1.5 border border-gray-800/50 backdrop-blur-md rounded-lg">
+                        <HeartPulse className="text-red-500" size={16} />
+                        <div className="w-12 sm:w-28 h-1.5 bg-gray-800/50 rounded overflow-hidden">
                             <div className="h-full bg-red-600 transition-all duration-300" style={{ width: `${(stats.health / stats.maxHealth) * 100}%` }} />
                         </div>
-                        <span className="text-xs font-bold">{Math.floor(stats.health)}</span>
+                        <span className="text-[10px] font-bold min-w-[20px] text-right">{Math.floor(stats.health)}</span>
                     </div>
                     
-                    <div className="flex items-center gap-2 bg-black/60 p-2 border border-gray-800 backdrop-blur-sm rounded-lg">
-                        <Wind className="text-cyan-400" size={20} />
-                        <div className="w-16 sm:w-32 h-3 bg-gray-800 rounded overflow-hidden">
+                    <div className="flex items-center gap-1.5 bg-black/40 p-1.5 border border-gray-800/50 backdrop-blur-md rounded-lg">
+                        <Wind className="text-cyan-400" size={16} />
+                        <div className="w-12 sm:w-28 h-1.5 bg-gray-800/50 rounded overflow-hidden">
                             <div className="h-full bg-cyan-500 transition-all duration-300" style={{ width: `${stats.oxygen}%` }} />
                         </div>
-                        <span className="text-xs font-bold">{Math.floor(stats.oxygen)}%</span>
+                        <span className="text-[10px] font-bold min-w-[20px] text-right">{Math.floor(stats.oxygen)}%</span>
                     </div>
 
-                    <div className="flex items-center gap-2 bg-black/60 p-2 border border-gray-800 backdrop-blur-sm rounded-lg">
-                        <Biohazard className="text-green-500" size={20} />
-                        <div className="w-16 sm:w-32 h-3 bg-gray-800 rounded overflow-hidden relative">
+                    <div className="flex items-center gap-1.5 bg-black/40 p-1.5 border border-gray-800/50 backdrop-blur-md rounded-lg">
+                        <Biohazard className="text-green-500" size={16} />
+                        <div className="w-12 sm:w-28 h-1.5 bg-gray-800/50 rounded overflow-hidden relative">
                              <div className="absolute inset-0 bg-green-900/30" />
                             <div className="h-full bg-green-500 transition-all duration-300" style={{ width: `${stats.infection}%` }} />
                         </div>
-                        <span className="text-xs font-bold">{Math.floor(stats.infection)}%</span>
+                        <span className="text-[10px] font-bold min-w-[20px] text-right">{Math.floor(stats.infection)}%</span>
                     </div>
 
                     {/* Mobile Inventory Button - Left Side */}
-                    <button onClick={toggleInventory} className="lg:hidden self-start mt-2 bg-gray-900/90 p-3 border border-gray-600 text-white shadow-lg active:scale-95 transition-transform rounded-lg">
-                         <Briefcase size={24} />
+                    <button onClick={toggleInventory} className="lg:hidden self-start mt-1 bg-gray-900/80 p-2 border border-gray-600/50 text-gray-300 shadow-lg active:scale-95 transition-transform rounded-lg backdrop-blur-sm">
+                         <Briefcase size={18} />
                     </button>
                 </div>
 
-                {/* Top Right - Resources Summary & Mobile Pause */}
-                <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-auto">
+                {/* Top Right - Resources Summary & Mobile Pause - COMPACT MODE */}
+                <div className="absolute top-2 right-2 flex flex-col items-end gap-1.5 pointer-events-auto">
                      <div className="flex items-center gap-2">
                         {/* Resources */}
                          <div className="flex gap-2">
                             <ResourceItem icon={RefreshCw} count={stats.scraps} label={t.res_scraps} />
+                            {stats.rareSlime > 0 && (
+                                <ResourceItem icon={FlaskConical} count={stats.rareSlime} label={t.res_rareSlime} color="text-lime-400" />
+                            )}
                          </div>
                          
                          {/* Mobile Pause Button - Right Side */}
-                         <button onClick={togglePause} className="lg:hidden bg-gray-900/90 p-2 border border-gray-600 text-white shadow-lg active:scale-95 transition-transform rounded-lg h-full flex items-center justify-center">
-                             <Pause size={20} />
+                         <button onClick={togglePause} className="lg:hidden bg-gray-900/80 p-2 border border-gray-600/50 text-gray-300 shadow-lg active:scale-95 transition-transform rounded-lg h-full flex items-center justify-center backdrop-blur-sm">
+                             <Pause size={18} />
                         </button>
                      </div>
-                     <div className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/50 px-2 py-1 rounded-full">{t.sector}</div>
+                     <div className="text-[8px] text-gray-500 uppercase tracking-widest bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-sm">{t.sector}</div>
                      {/* Save Indicator */}
                      {showSaveIndicator && (
-                        <div className="text-[10px] text-green-500 uppercase tracking-widest flex items-center gap-1 bg-black/50 px-2 py-1 rounded-full animate-pulse">
-                            <Save size={10} /> {t.game_saved}
+                        <div className="text-[8px] text-green-500 uppercase tracking-widest flex items-center gap-1 bg-black/30 px-2 py-0.5 rounded-full animate-pulse backdrop-blur-sm">
+                            <Save size={8} /> {t.game_saved}
                         </div>
                      )}
                 </div>
 
-                {/* Mobile Action Controls (Right Side) */}
-                <div className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-auto lg:hidden z-10 flex flex-row items-end gap-4">
-                    {/* Interact Button - Smaller, next to action */}
+                {/* Mobile Action Controls (Right Side) - COMPACT */}
+                <div className="absolute top-1/2 -translate-y-1/2 right-2 pointer-events-auto lg:hidden z-10 flex flex-row items-end gap-3">
+                    {/* Interact Button - Smaller */}
                     {canInteract && !showBaseOrLab && (
                         <button 
                             onClick={handleMobileInteract} 
-                            className="w-10 h-10 mb-2 rounded-full border-2 bg-orange-900/90 border-orange-500 text-orange-100 flex items-center justify-center shadow-lg active:scale-95 transition-transform animate-pulse"
+                            className="w-10 h-10 mb-1 rounded-full border-2 bg-orange-900/90 border-orange-500 text-orange-100 flex items-center justify-center shadow-lg active:scale-95 transition-transform animate-pulse"
                         >
                             <Hand size={16} />
                         </button>
                     )}
 
-                     {/* Action Toggle (Pickaxe/Sword) */}
+                     {/* Action Toggle (Pickaxe/Sword) - Smaller */}
                     <button 
                         onClick={() => setMobileActionMode(prev => prev === 'MINE' ? 'ATTACK' : 'MINE')}
-                        className={`w-16 h-16 rounded-full border-2 flex flex-col items-center justify-center shadow-xl transition-all ${mobileActionMode === 'MINE' ? 'bg-cyan-900/80 border-cyan-400 shadow-[0_0_15px_rgba(0,255,255,0.4)]' : 'bg-red-900/80 border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.4)]'}`}
+                        className={`w-14 h-14 rounded-full border-2 flex flex-col items-center justify-center shadow-xl transition-all ${mobileActionMode === 'MINE' ? 'bg-cyan-900/80 border-cyan-400 shadow-[0_0_10px_rgba(0,255,255,0.3)]' : 'bg-red-900/80 border-red-500 shadow-[0_0_10px_rgba(255,0,0,0.3)]'}`}
                     >
-                        {mobileActionMode === 'MINE' ? <Pickaxe size={24} /> : <Sword size={24} />}
-                        <span className="text-[10px] font-bold uppercase mt-1">{mobileActionMode === 'MINE' ? 'MINE' : 'FIGHT'}</span>
+                        {mobileActionMode === 'MINE' ? <Pickaxe size={20} /> : <Sword size={20} />}
+                        <span className="text-[8px] font-bold uppercase mt-0.5">{mobileActionMode === 'MINE' ? 'MINE' : 'FIGHT'}</span>
                     </button>
                 </div>
             </div>
@@ -1371,7 +1380,7 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* LOCATION SELECT - NARROW VERSION */}
+        {/* LOCATION SELECT */}
         {gameState === GameState.LOCATION_SELECT && (
             <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 p-4">
                 <div className="max-w-sm w-[85%] border-2 border-cyan-900 bg-gray-950 relative shadow-[0_0_60px_rgba(0,200,255,0.15)] rounded-xl animate-border-pulse">
@@ -1424,162 +1433,111 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* BASE MENU - Updated for Mobile sizing */}
+        {/* BASE MENU - ENGINEERING */}
         {gameState === GameState.BASE_MENU && (
-            <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-40 p-2 md:p-8">
-                <div className="w-[98%] md:w-[95%] max-w-5xl h-auto max-h-[85vh] flex flex-col bg-gray-950 border-2 border-red-900 rounded-xl overflow-hidden shadow-2xl animate-border-pulse relative">
+            <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 p-2 md:p-8">
+                <div className="w-[98%] md:w-[95%] max-w-4xl h-[85vh] bg-gray-950 border-2 border-red-900/50 rounded-xl overflow-hidden flex flex-col shadow-[0_0_50px_rgba(100,0,0,0.3)] relative animate-border-pulse">
                     <button onClick={() => toggleBaseUI(false)} className="absolute top-2 right-2 md:top-4 md:right-4 text-gray-500 hover:text-white z-10 bg-black/50 rounded-full p-1"><X size={20} /></button>
-                    
-                    {/* Header */}
-                    <div className="bg-gray-900 p-2 md:p-6 border-b border-red-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="p-4 border-b border-red-900/30 flex items-center gap-3 shrink-0 bg-red-950/20">
+                        <Terminal className="text-red-500" />
                         <div>
-                            <div className="flex items-center gap-3 text-red-500 mb-1">
-                                <Wrench size={20} className="md:w-6 md:h-6" />
-                                <h2 className="text-xl md:text-3xl font-black tracking-tighter">{t.engineering}</h2>
-                            </div>
-                            <div className="text-[10px] md:text-xs text-green-500 font-mono tracking-widest uppercase">{t.status_operational}</div>
-                        </div>
-                        <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-sm bg-black/40 p-2 rounded-lg border border-gray-800 overflow-x-auto whitespace-nowrap">
-                             <div className="flex items-center gap-1 md:gap-2"><RefreshCw size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.scraps} <span className="hidden sm:inline text-gray-600">{t.res_scraps}</span></div>
-                             <div className="flex items-center gap-1 md:gap-2"><Box size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.iron} <span className="hidden sm:inline text-gray-600">{t.res_iron}</span></div>
-                             <div className="flex items-center gap-1 md:gap-2"><Triangle size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.wood} <span className="hidden sm:inline text-gray-600">{t.res_wood}</span></div>
+                            <h2 className="text-xl md:text-2xl font-black tracking-tighter text-red-100">{t.engineering}</h2>
+                            <div className="text-[10px] text-red-400 font-mono uppercase tracking-widest flex items-center gap-2"><CircleDashed size={10} className="animate-spin" /> {t.status_operational}</div>
                         </div>
                     </div>
-
-                    {/* Tabs */}
-                    <div className="flex border-b border-gray-800 shrink-0">
-                        <button 
-                            onClick={() => setBaseTab('upgrades')}
-                            className={`flex-1 py-3 md:py-4 text-center font-bold tracking-widest text-xs md:text-base transition-colors ${baseTab === 'upgrades' ? 'bg-red-900/20 text-red-500 border-b-2 border-red-500' : 'text-gray-500 hover:bg-gray-900'}`}
-                        >
-                            {t.upgrade}
-                        </button>
-                        <button 
-                            onClick={() => setBaseTab('fabrication')}
-                            className={`flex-1 py-3 md:py-4 text-center font-bold tracking-widest text-xs md:text-base transition-colors ${baseTab === 'fabrication' ? 'bg-red-900/20 text-red-500 border-b-2 border-red-500' : 'text-gray-500 hover:bg-gray-900'}`}
-                        >
-                            {t.crafting}
-                        </button>
+                    
+                    <div className="flex border-b border-red-900/30 shrink-0">
+                        <button onClick={() => { playUiSound('click'); setBaseTab('upgrades'); }} className={`flex-1 py-3 text-xs md:text-sm font-bold tracking-widest transition-colors ${baseTab === 'upgrades' ? 'bg-red-900/20 text-red-100 border-b-2 border-red-500' : 'bg-transparent text-gray-500 hover:bg-gray-900'}`}>{t.upgrade}</button>
+                        <button onClick={() => { playUiSound('click'); setBaseTab('fabrication'); }} className={`flex-1 py-3 text-xs md:text-sm font-bold tracking-widest transition-colors ${baseTab === 'fabrication' ? 'bg-red-900/20 text-red-100 border-b-2 border-red-500' : 'bg-transparent text-gray-500 hover:bg-gray-900'}`}>{t.crafting}</button>
                     </div>
 
-                    {/* Content - Scrollable */}
-                    <div className="flex-1 overflow-y-auto p-2 md:p-6 bg-black/50 lab-scroll min-h-0">
+                    <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
                         {baseTab === 'upgrades' ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
-                                {/* Suit Upgrades */}
-                                {[
-                                    { id: 'oxygen', icon: Wind, title: t.upg_oxygen, desc: t.upg_oxygen_desc, lvl: stats.oxygenLevel, max: 10 },
-                                    { id: 'resistance', icon: Shield, title: t.upg_resistance, desc: t.upg_resistance_desc, lvl: stats.infectionResistanceLevel, max: 5 },
-                                    { id: 'jump_boots', icon: ArrowUpFromLine, title: t.upg_boots, desc: t.upg_boots_desc, lvl: stats.highJumpBoots ? 1 : 0, max: 1 },
-                                    { id: 'drill_speed', icon: Zap, title: t.upg_speed, desc: t.upg_speed_desc, lvl: stats.miningSpeedLevel, max: 5 },
-                                    { id: 'drill_radius', icon: CircleDashed, title: t.upg_radius, desc: t.upg_radius_desc, lvl: stats.miningRadiusLevel, max: 5 },
-                                    { id: 'drill_reach', icon: Move, title: t.upg_reach, desc: t.upg_reach_desc, lvl: stats.miningReachLevel, max: 5 },
-                                    { id: 'scanner_luck', icon: Scan, title: t.upg_scanner, desc: t.upg_scanner_desc, lvl: stats.oreScannerLevel, max: 5 },
-                                    { id: 'radar', icon: Crosshair, title: t.upg_radar, desc: t.upg_radar_desc, lvl: stats.unlockedRooms?.includes('radar') ? 1 : 0, max: 1 },
-                                    { id: 'fabricator', icon: Hammer, title: t.upg_fabricator, desc: t.upg_fabricator_desc, lvl: stats.inventoryLevel, max: 1 },
-                                    // Base Upgrades
-                                    { id: 'base_expand', icon: Home, title: t.upg_expand, desc: t.upg_expand_desc, lvl: stats.baseExpansionLevel + 1, max: 5 },
-                                    { id: 'storage_bay', icon: Container, title: t.upg_storage, desc: t.upg_storage_desc, lvl: stats.storageLevel + 1, max: 5 },
-                                    { id: 'decon_unit', icon: Biohazard, title: t.upg_decon, desc: t.upg_decon_desc, lvl: stats.hasDecontaminationUnit ? 1 : 0, max: 1 },
-                                    { id: 'hyperloop', icon: ChevronsRight, title: t.upg_hyperloop, desc: t.upg_hyperloop_desc, lvl: stats.loadingSpeedLevel, max: 5 },
-                                    // Lab Key
-                                    { id: 'lab_key', icon: Cpu, title: t.item_lab_key, desc: t.item_lab_key_desc, lvl: stats.unlockedLab ? 1 : 0, max: 1 },
-                                ].map((u) => {
-                                    const cost = getDynamicCost(u.id);
-                                    const isMaxed = u.lvl >= u.max;
-                                    const canBuy = !isMaxed && cost && canAfford(cost);
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {Object.keys(BASE_UPGRADE_COSTS).map(key => {
+                                    let name = ""; let desc = ""; let level = 0; let icon = Hammer;
+                                    if (key === 'oxygen') { name = t.upg_oxygen; desc = t.upg_oxygen_desc; level = stats.oxygenLevel; icon = Wind; }
+                                    else if (key === 'drill_radius') { name = t.upg_radius; desc = t.upg_radius_desc; level = stats.miningRadiusLevel; icon = CircleDashed; }
+                                    else if (key === 'drill_reach') { name = t.upg_reach; desc = t.upg_reach_desc; level = stats.miningReachLevel; icon = Pickaxe; }
+                                    else if (key === 'drill_speed') { name = t.upg_speed; desc = t.upg_speed_desc; level = stats.miningSpeedLevel; icon = Zap; }
+                                    else if (key === 'scanner_luck') { name = t.upg_scanner; desc = t.upg_scanner_desc; level = stats.oreScannerLevel; icon = Scan; }
+                                    else if (key === 'resistance') { name = t.upg_resistance; desc = t.upg_resistance_desc; level = stats.infectionResistanceLevel; icon = Shield; }
+                                    else if (key === 'fabricator') { name = t.upg_fabricator; desc = t.upg_fabricator_desc; level = stats.inventoryLevel; icon = Hammer; }
+                                    else if (key === 'jump_boots') { name = t.upg_boots; desc = t.upg_boots_desc; level = stats.highJumpBoots ? 1 : 0; icon = ArrowUpFromLine; }
+                                    else if (key === 'radar') { name = t.upg_radar; desc = t.upg_radar_desc; level = stats.unlockedRooms?.includes('radar') ? 1 : 0; icon = Radiation; }
+                                    else if (key === 'base_expand') { name = t.upg_expand; desc = t.upg_expand_desc; level = stats.baseExpansionLevel + 1; icon = Home; }
+                                    else if (key === 'decon_unit') { name = t.upg_decon; desc = t.upg_decon_desc; level = stats.hasDecontaminationUnit ? 1 : 0; icon = Biohazard; }
+                                    else if (key === 'hyperloop') { name = t.upg_hyperloop; desc = t.upg_hyperloop_desc; level = stats.loadingSpeedLevel; icon = FastForward; }
+                                    else if (key === 'storage_bay') { name = t.upg_storage; desc = t.upg_storage_desc; level = stats.storageLevel + 1; icon = Box; }
+                                    else if (key === 'lab_research') { name = t.upg_lab; desc = t.upg_lab_desc; level = stats.labLevel; icon = FlaskConical; }
+                                    else if (key === 'lab_key') { name = t.item_lab_key; desc = t.item_lab_key_desc; level = stats.unlockedLab ? 1 : 0; icon = Lock; }
+
+                                    const isMaxed = (key === 'jump_boots' || key === 'radar' || key === 'decon_unit' || key === 'lab_key') && level >= 1;
+                                    const cost = getDynamicCost(key);
 
                                     return (
-                                        <div key={u.id} className={`bg-gray-900 border ${isMaxed ? 'border-green-900/50 opacity-75' : 'border-gray-800'} p-3 md:p-4 rounded-xl flex flex-col gap-2 md:gap-3 group hover:border-red-900/50 transition-all`}>
-                                            <div className="flex justify-between items-start">
-                                                <div className="p-2 md:p-3 bg-black rounded-lg border border-gray-800 text-red-500">
-                                                    <u.icon size={20} className="md:w-6 md:h-6" />
+                                        <div key={key} className={`bg-gray-900 border ${isMaxed ? 'border-green-800 bg-green-900/10' : 'border-gray-800'} p-3 rounded-lg flex flex-col justify-between group hover:border-red-800 transition-colors`}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="flex items-center gap-2 text-red-200 font-bold text-xs md:text-sm">
+                                                    {React.createElement(icon, { size: 16, className: isMaxed ? "text-green-500" : "text-red-500" })} 
+                                                    {name} 
+                                                    {!isMaxed && <span className="text-[10px] text-gray-500 bg-black px-1.5 rounded ml-2">LVL {level}</span>}
                                                 </div>
-                                                <div className="text-[10px] md:text-xs font-bold text-gray-600 bg-black px-2 py-1 rounded">LVL {u.lvl}</div>
+                                                <button onClick={() => openInfoModal(name, desc, cost)} className="text-gray-500 hover:text-white"><Info size={14}/></button>
                                             </div>
-                                            <div>
-                                                <h3 className="font-bold text-sm md:text-base text-gray-200">{u.title}</h3>
-                                                <p className="text-[10px] md:text-xs text-gray-500 mt-1 h-8 leading-tight">{u.desc}</p>
-                                            </div>
-                                            <div className="mt-auto pt-2 md:pt-4 border-t border-gray-800">
-                                                {isMaxed ? (
-                                                     <div className="w-full py-2 text-center text-green-700 font-bold text-[10px] md:text-xs bg-green-950/20 rounded border border-green-900/30">MAX LEVEL</div>
-                                                ) : (
-                                                    <div className="flex items-center justify-between flex-wrap gap-2">
-                                                        {renderCost(cost)}
-                                                        <button 
-                                                            onClick={() => upgradeBase(u.id)}
-                                                            className={`px-3 py-1.5 md:px-4 md:py-2 rounded font-bold text-[10px] md:text-xs transition-colors ml-auto ${canBuy ? 'bg-red-900 hover:bg-red-800 text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
-                                                        >
-                                                            {canBuy ? t.buy : t.need}
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <div className="text-[10px] text-gray-400 mb-3 leading-tight min-h-[2.5em]">{desc}</div>
+                                            
+                                            {isMaxed ? (
+                                                <div className="mt-auto bg-green-900/20 text-green-500 text-center py-2 rounded font-bold text-xs border border-green-800/50">{t.active}</div>
+                                            ) : (
+                                                <div className="mt-auto">
+                                                    <div className="mb-2">{renderCost(cost)}</div>
+                                                    <button onClick={() => upgradeBase(key)} className="w-full bg-red-900 hover:bg-red-800 text-white py-2 rounded text-xs font-bold transition-all border border-red-700 hover:border-red-500 shadow-lg">{t.buy}</button>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
                             </div>
                         ) : (
-                            <div className="space-y-3 md:space-y-4">
-                                {CRAFTING_RECIPES.filter(r => r.type !== 'consumable').map(recipe => {
-                                    // Safety checks for fabrication rendering to prevent black screen
-                                    const recipeId = recipe?.id;
-                                    if (!recipeId) return null;
-
-                                    const isWeapon = recipe.type === 'weapon';
-                                    const isUpgrade = recipe.type === 'upgrade';
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {CRAFTING_RECIPES.filter(r => r.type !== 'upgrade' && !['health_injection', 'immunity_booster', 'purifier'].includes(r.id)).map(recipe => {
+                                    let name = ""; let desc = ""; let icon = Box;
                                     
-                                    let isOwned = false;
-                                    try {
-                                        if (isWeapon && recipe.weaponId) {
-                                            isOwned = stats.unlockedWeapons.includes(recipe.weaponId);
-                                        } else if (isUpgrade && recipe.statKey) {
-                                            // Handle boolean vs number stats safely
-                                            const val = stats[recipe.statKey];
-                                            isOwned = !!val;
-                                        }
-                                    } catch (e) {
-                                        console.error("Error checking ownership", e);
-                                    }
+                                    if (recipe.id === 'weapon_sword') { name = t.wpn_sword; desc = t.wpn_sword_desc; icon = Sword; }
+                                    else if (recipe.id === 'weapon_force') { name = t.wpn_force; desc = t.wpn_force_desc; icon = Hand; }
+                                    else if (recipe.id === 'weapon_laser') { name = t.wpn_laser; desc = t.wpn_laser_desc; icon = Zap; }
+                                    else if (recipe.id === 'repair_kit') { name = t.item_repair; desc = t.item_repair_desc; icon = Wrench; }
+                                    else if (recipe.id === 'oxygen_tank') { name = t.item_tank; desc = t.item_tank_desc; icon = Cylinder; }
+                                    else if (recipe.id === 'lantern') { name = t.item_lantern; desc = t.item_lantern_desc; icon = Lightbulb; }
+                                    else if (recipe.id === 'teleporter') { name = t.item_teleporter; desc = t.item_teleporter_desc; icon = ArrowRightLeft; }
 
-                                    const isLocked = recipe.reqLevel > stats.inventoryLevel;
-                                    const canCraft = !isLocked && !isOwned && canAfford(recipe.cost);
-
-                                    let title = recipe.id;
-                                    let desc = "";
-                                    let Icon = Box;
-                                    if (recipe.id === 'lantern') { title = t.item_lantern; desc = t.item_lantern_desc; Icon = Lightbulb; }
-                                    else if (recipe.id === 'lab_key') { title = t.item_lab_key; desc = t.item_lab_key_desc; Icon = Cpu; }
-                                    else if (recipe.id === 'weapon_sword') { title = t.wpn_sword; desc = t.wpn_sword_desc; Icon = Sword; }
-                                    else if (recipe.id === 'weapon_force') { title = t.wpn_force; desc = t.wpn_force_desc; Icon = Hand; }
-                                    else if (recipe.id === 'weapon_laser') { title = t.wpn_laser; desc = t.wpn_laser_desc; Icon = Zap; }
+                                    const isLocked = stats.inventoryLevel < recipe.reqLevel;
+                                    const isOwned = recipe.type === 'weapon' && stats.unlockedWeapons.includes(recipe.weaponId!);
 
                                     return (
-                                        <div key={recipe.id} className="bg-gray-900 border border-gray-800 p-3 md:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                            <div className="flex items-center gap-3 md:gap-4">
-                                                <div className={`p-2 md:p-3 rounded-lg border ${isOwned ? 'bg-green-950/20 border-green-900/50 text-green-500' : 'bg-black border-gray-800 text-gray-400'}`}>
-                                                    <Icon size={20} className="md:w-6 md:h-6" />
+                                        <div key={recipe.id} className={`bg-gray-900 border ${isOwned ? 'border-green-800 bg-green-900/10' : 'border-gray-800'} p-3 rounded-lg flex flex-col relative overflow-hidden group hover:border-red-800 transition-colors`}>
+                                            {isLocked && (
+                                                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10 text-red-500 text-xs font-bold gap-2">
+                                                    <Lock size={20} />
+                                                    {t.locked_fab}
                                                 </div>
-                                                <div>
-                                                    <h3 className="font-bold text-sm md:text-base text-gray-200">{title}</h3>
-                                                    <p className="text-[10px] md:text-xs text-gray-500">{desc}</p>
-                                                    {isLocked && <div className="text-[10px] text-red-500 mt-1 font-bold">{t.locked_fab}</div>}
+                                            )}
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="flex items-center gap-2 text-gray-200 font-bold text-xs md:text-sm">
+                                                    {React.createElement(icon, { size: 16, className: isOwned ? "text-green-500" : "text-gray-400" })} 
+                                                    {name}
                                                 </div>
+                                                <button onClick={() => openInfoModal(name, desc, recipe.cost)} className="text-gray-500 hover:text-white"><Info size={14}/></button>
                                             </div>
+                                            <div className="text-[10px] text-gray-400 mb-3">{desc}</div>
                                             
                                             {isOwned ? (
-                                                <div className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-800 rounded text-[10px] md:text-xs text-gray-400 font-bold border border-gray-700 text-center">{t.crafted}</div>
+                                                <div className="mt-auto bg-green-900/20 text-green-500 text-center py-2 rounded font-bold text-xs border border-green-800/50">{t.crafted}</div>
                                             ) : (
-                                                <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 w-full sm:w-auto">
-                                                    {renderCost(recipe.cost)}
-                                                    <button 
-                                                        onClick={() => craftItem(recipe.id)}
-                                                        disabled={!canCraft}
-                                                        className={`px-4 py-1.5 md:px-6 md:py-2 rounded font-bold text-[10px] md:text-xs ${canCraft ? 'bg-red-900 hover:bg-red-800 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}
-                                                    >
-                                                        {isLocked ? t.locked : t.craft}
-                                                    </button>
+                                                <div className="mt-auto">
+                                                    <div className="mb-2">{renderCost(recipe.cost)}</div>
+                                                    <button onClick={() => craftItem(recipe.id)} disabled={isLocked} className="w-full bg-gray-800 hover:bg-gray-700 text-gray-200 py-2 rounded text-xs font-bold transition-all border border-gray-600 hover:border-gray-400">{t.craft}</button>
                                                 </div>
                                             )}
                                         </div>
@@ -1592,140 +1550,82 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* LAB MENU (Bio-Laboratory) - Updated for Mobile sizing */}
+        {/* LAB MENU - BIO LAB */}
         {gameState === GameState.LAB_MENU && (
-            <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-40 p-2 md:p-8">
-                <div className="w-[98%] md:w-[95%] max-w-5xl h-auto max-h-[85vh] flex flex-col bg-gray-950 border-2 border-green-900 rounded-xl overflow-hidden shadow-[0_0_50px_rgba(0,100,0,0.2)] animate-border-pulse-green relative">
+            <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 p-2 md:p-8">
+                <div className="w-[98%] md:w-[95%] max-w-4xl h-[85vh] bg-gray-950 border-2 border-green-900/50 rounded-xl overflow-hidden flex flex-col shadow-[0_0_50px_rgba(0,100,0,0.3)] relative animate-border-pulse-green">
                     <button onClick={() => toggleBaseUI(false)} className="absolute top-2 right-2 md:top-4 md:right-4 text-gray-500 hover:text-white z-10 bg-black/50 rounded-full p-1"><X size={20} /></button>
-                    
-                    {/* Header */}
-                    <div className="bg-gray-900 p-2 md:p-6 border-b border-green-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="p-4 border-b border-green-900/30 flex items-center gap-3 shrink-0 bg-green-950/20">
+                        <FlaskConical className="text-green-500" />
                         <div>
-                            <div className="flex items-center gap-3 text-green-500 mb-1">
-                                <FlaskConical size={20} className="md:w-6 md:h-6" />
-                                <h2 className="text-xl md:text-3xl font-black tracking-tighter">{t.laboratory}</h2>
-                            </div>
-                            <div className="text-[10px] md:text-xs text-green-700 font-mono tracking-widest uppercase">{t.status_operational}</div>
-                        </div>
-                        <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-sm bg-black/40 p-2 rounded-lg border border-gray-800 overflow-x-auto whitespace-nowrap">
-                             <div className="flex items-center gap-1 md:gap-2"><RefreshCw size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.scraps} <span className="hidden sm:inline text-gray-600">{t.res_scraps}</span></div>
-                             <div className="flex items-center gap-1 md:gap-2"><Lightbulb size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.coal} <span className="hidden sm:inline text-gray-600">{t.res_coal}</span></div>
-                             <div className="flex items-center gap-1 md:gap-2"><Droplet size={12} className="text-gray-400 md:w-3.5 md:h-3.5"/> {stats.ice} <span className="hidden sm:inline text-gray-600">{t.res_ice}</span></div>
+                            <h2 className="text-xl md:text-2xl font-black tracking-tighter text-green-100">{t.laboratory}</h2>
+                            <div className="text-[10px] text-green-400 font-mono uppercase tracking-widest flex items-center gap-2"><TestTube size={10} /> {t.status_operational}</div>
                         </div>
                     </div>
-
-                    {/* Tabs */}
-                    <div className="flex border-b border-gray-800 shrink-0">
-                        <button 
-                            onClick={() => setLabTab('brewing')}
-                            className={`flex-1 py-3 md:py-4 text-center font-bold tracking-widest text-xs md:text-base transition-colors ${labTab === 'brewing' ? 'bg-green-900/20 text-green-500 border-b-2 border-green-500' : 'text-gray-500 hover:bg-gray-900'}`}
-                        >
-                            <FlaskConical className="inline mr-2 w-3 h-3 md:w-4 md:h-4" /> {t.brewing}
-                        </button>
-                        <button 
-                            onClick={() => setLabTab('research')}
-                            className={`flex-1 py-3 md:py-4 text-center font-bold tracking-widest text-xs md:text-base transition-colors ${labTab === 'research' ? 'bg-green-900/20 text-green-500 border-b-2 border-green-500' : 'text-gray-500 hover:bg-gray-900'}`}
-                        >
-                            <TestTube className="inline mr-2 w-3 h-3 md:w-4 md:h-4" /> {t.research}
-                        </button>
+                    
+                    <div className="flex border-b border-green-900/30 shrink-0">
+                        <button onClick={() => { playUiSound('click'); setLabTab('brewing'); }} className={`flex-1 py-3 text-xs md:text-sm font-bold tracking-widest transition-colors ${labTab === 'brewing' ? 'bg-green-900/20 text-green-100 border-b-2 border-green-500' : 'bg-transparent text-gray-500 hover:bg-gray-900'}`}>{t.brewing}</button>
+                        <button onClick={() => { playUiSound('click'); setLabTab('research'); }} className={`flex-1 py-3 text-xs md:text-sm font-bold tracking-widest transition-colors ${labTab === 'research' ? 'bg-green-900/20 text-green-100 border-b-2 border-green-500' : 'bg-transparent text-gray-500 hover:bg-gray-900'}`}>{t.research}</button>
                     </div>
 
-                    {/* Content - Scrollable */}
-                    <div className="flex-1 overflow-y-auto p-2 md:p-6 bg-black/50 lab-scroll min-h-0">
+                    <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar lab-scroll">
                         {labTab === 'brewing' ? (
-                             <div className="space-y-3 md:space-y-4">
-                                {CRAFTING_RECIPES.filter(r => r.type === 'consumable').map(recipe => {
-                                    // Safety check
-                                    if (!recipe?.id) return null;
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {CRAFTING_RECIPES.filter(r => ['health_injection', 'immunity_booster', 'purifier'].includes(r.id)).map(recipe => {
+                                    let name = ""; let desc = ""; let icon = Syringe;
+                                    if (recipe.id === 'health_injection') { name = t.item_injection; desc = t.item_injection_desc; icon = Syringe; }
+                                    else if (recipe.id === 'immunity_booster') { name = t.item_booster; desc = t.item_booster_desc; icon = Shield; }
+                                    else if (recipe.id === 'purifier') { name = t.item_purifier; desc = t.item_purifier_desc; icon = Droplet; }
 
-                                    const isLocked = recipe.reqLevel > stats.labLevel;
-                                    const canCraft = !isLocked && canAfford(recipe.cost);
-                                    
-                                    let title = recipe.id;
-                                    let desc = "";
-                                    let Icon = Box;
-
-                                    if (recipe.id === 'repair_kit') { title = t.item_repair; desc = t.item_repair_desc; Icon = Wrench; }
-                                    else if (recipe.id === 'oxygen_tank') { title = t.item_tank; desc = t.item_tank_desc; Icon = Wind; }
-                                    else if (recipe.id === 'health_injection') { title = t.item_injection; desc = t.item_injection_desc; Icon = Syringe; }
-                                    else if (recipe.id === 'purifier') { title = t.item_purifier; desc = t.item_purifier_desc; Icon = Droplet; }
-                                    else if (recipe.id === 'immunity_booster') { title = t.item_booster; desc = t.item_booster_desc; Icon = Shield; }
+                                    const isLocked = (stats.labLevel || 1) < (recipe.reqLevel || 1);
 
                                     return (
-                                        <div key={recipe.id} className="bg-gray-900 border border-gray-800 p-3 md:p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between group hover:border-green-900/30 transition-all gap-3">
-                                            <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto">
-                                                <div className={`p-2 md:p-3 rounded-lg border ${isLocked ? 'bg-black border-gray-800 text-gray-600' : 'bg-green-950/20 border-green-900/30 text-green-500'}`}>
-                                                    <Icon size={20} className="md:w-6 md:h-6" />
+                                        <div key={recipe.id} className="bg-gray-900 border border-gray-800 p-3 rounded-lg flex flex-col relative overflow-hidden group hover:border-green-800 transition-colors">
+                                            {isLocked && (
+                                                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10 text-green-500 text-xs font-bold gap-2">
+                                                    <Lock size={20} />
+                                                    {t.locked_lab} {recipe.reqLevel}
                                                 </div>
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <h3 className="font-bold text-sm md:text-base text-gray-200">{title}</h3>
-                                                        {stats[recipe.statKey!] ? (
-                                                            <span className="text-[10px] bg-black px-1 rounded text-gray-500 border border-gray-800">x{stats[recipe.statKey!]}</span>
-                                                        ) : null}
-                                                    </div>
-                                                    <p className="text-[10px] md:text-xs text-gray-500">{desc}</p>
-                                                    {isLocked && <div className="text-[10px] text-red-500 mt-1 font-bold">{t.locked_lab} {recipe.reqLevel}</div>}
+                                            )}
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="flex items-center gap-2 text-green-100 font-bold text-xs md:text-sm">
+                                                    {React.createElement(icon, { size: 16, className: "text-green-500" })} 
+                                                    {name}
                                                 </div>
+                                                <button onClick={() => openInfoModal(name, desc, recipe.cost)} className="text-gray-500 hover:text-white"><Info size={14}/></button>
                                             </div>
-                                            
-                                            <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 w-full sm:w-auto justify-between sm:justify-center">
-                                                {!isLocked && (
-                                                    <button onClick={() => openInfoModal(title, desc, recipe.cost)} className="p-1 text-gray-600 hover:text-white hidden sm:block">
-                                                        <Info size={16} />
-                                                    </button>
-                                                )}
-                                                {renderCost(recipe.cost)}
-                                                <button 
-                                                    onClick={() => craftItem(recipe.id)}
-                                                    disabled={!canCraft}
-                                                    className={`px-4 py-1.5 md:px-6 md:py-2 rounded font-bold text-[10px] md:text-xs ml-2 sm:ml-0 ${canCraft ? 'bg-blue-900 hover:bg-blue-800 text-blue-100' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}
-                                                >
-                                                    {isLocked ? t.locked : t.craft}
-                                                </button>
+                                            <div className="text-[10px] text-gray-400 mb-3">{desc}</div>
+                                            <div className="mt-auto">
+                                                <div className="mb-2">{renderCost(recipe.cost)}</div>
+                                                <button onClick={() => craftItem(recipe.id)} disabled={isLocked} className="w-full bg-green-900/30 hover:bg-green-900/50 text-green-100 py-2 rounded text-xs font-bold transition-all border border-green-800 hover:border-green-600">{t.craft}</button>
                                             </div>
                                         </div>
                                     );
                                 })}
-                             </div>
+                            </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {[
-                                    { id: 'lab_research', icon: TestTube, title: t.upg_lab, desc: t.upg_lab_desc, lvl: stats.labLevel, max: 5 },
-                                ].map((u) => {
-                                     const cost = getDynamicCost(u.id);
-                                     const isMaxed = u.lvl >= u.max;
-                                     const canBuy = !isMaxed && cost && canAfford(cost);
-
-                                     return (
-                                        <div key={u.id} className={`bg-gray-900 border ${isMaxed ? 'border-green-900/50 opacity-75' : 'border-gray-800'} p-4 md:p-6 rounded-xl flex flex-col gap-4 group hover:border-green-500/30 transition-all`}>
-                                            <div className="flex justify-between items-start">
-                                                <div className="p-3 md:p-4 bg-black rounded-lg border border-gray-800 text-green-500">
-                                                    <u.icon size={24} className="md:w-8 md:h-8" />
+                            <div className="grid grid-cols-1 gap-4">
+                                {['lab_research'].map(key => {
+                                    const name = t.upg_lab;
+                                    const desc = t.upg_lab_desc;
+                                    const level = stats.labLevel;
+                                    const cost = getDynamicCost(key);
+                                    
+                                    return (
+                                        <div key={key} className="bg-gray-900 border border-gray-800 p-4 rounded-lg flex flex-col md:flex-row gap-4 justify-between items-center group hover:border-green-800 transition-colors">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 text-green-200 font-bold text-sm mb-1">
+                                                    <FlaskConical size={18} className="text-green-500" />
+                                                    {name} <span className="text-[10px] bg-black px-2 py-0.5 rounded text-gray-400">LVL {level}</span>
                                                 </div>
-                                                <div className="text-[10px] md:text-xs font-bold text-green-500 bg-green-950/30 px-3 py-1 rounded border border-green-900/50">LEVEL {u.lvl}</div>
+                                                <div className="text-xs text-gray-400">{desc}</div>
                                             </div>
-                                            <div>
-                                                <h3 className="text-lg md:text-xl font-bold text-gray-200">{u.title}</h3>
-                                                <p className="text-xs md:text-sm text-gray-500 mt-2">{u.desc}</p>
-                                            </div>
-                                            <div className="mt-auto pt-4 md:pt-6 border-t border-gray-800">
-                                                {isMaxed ? (
-                                                     <div className="w-full py-3 text-center text-green-400 font-bold text-xs bg-green-950/40 rounded border border-green-900">MAXIMUM RESEARCH</div>
-                                                ) : (
-                                                    <div className="flex flex-col gap-3">
-                                                        {renderCost(cost)}
-                                                        <button 
-                                                            onClick={() => upgradeBase(u.id)}
-                                                            className={`w-full py-2 md:py-3 rounded font-bold text-xs md:text-sm transition-colors ${canBuy ? 'bg-green-700 hover:bg-green-600 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}
-                                                        >
-                                                            {canBuy ? t.research : t.need}
-                                                        </button>
-                                                    </div>
-                                                )}
+                                            <div className="flex flex-col items-end gap-2 w-full md:w-auto">
+                                                <div className="flex gap-2">{renderCost(cost)}</div>
+                                                <button onClick={() => upgradeBase(key)} className="bg-green-900 hover:bg-green-800 text-white px-6 py-2 rounded font-bold text-xs transition-all border border-green-700 w-full md:w-auto">{t.upgrade}</button>
                                             </div>
                                         </div>
-                                     );
+                                    );
                                 })}
                             </div>
                         )}
@@ -1734,7 +1634,121 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* INVENTORY - Updated for Mobile Sizing */}
+        {/* STORAGE MENU */}
+        {gameState === GameState.STORAGE_MENU && (
+            <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 p-2 md:p-8">
+                <div className="w-[98%] md:w-[95%] max-w-4xl h-[85vh] bg-gray-950 border-2 border-yellow-900/50 rounded-xl overflow-hidden flex flex-col shadow-[0_0_50px_rgba(100,80,0,0.3)] relative">
+                    <button onClick={() => toggleBaseUI(false)} className="absolute top-2 right-2 md:top-4 md:right-4 text-gray-500 hover:text-white z-10 bg-black/50 rounded-full p-1"><X size={20} /></button>
+                    <div className="p-4 border-b border-yellow-900/30 flex items-center gap-3 shrink-0 bg-yellow-950/20">
+                        <Container className="text-yellow-600" />
+                        <div>
+                            <h2 className="text-xl md:text-2xl font-black tracking-tighter text-yellow-100">{t.storage}</h2>
+                            <div className="text-[10px] text-yellow-500 font-mono uppercase tracking-widest">{t.cap_unltd}</div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                        {/* LEFT: PLAYER INVENTORY */}
+                        <div className="flex flex-col gap-4">
+                            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800 pb-2">{t.inventory}</h3>
+                            {/* Resources */}
+                            <div className="space-y-2">
+                                {Object.keys(RESOURCE_CONFIG).map(resKey => {
+                                    const count = stats[resKey as keyof PlayerStats] as number;
+                                    const config = RESOURCE_CONFIG[resKey];
+                                    const Icon = config.icon;
+                                    if (count <= 0) return null;
+                                    return (
+                                        <div key={resKey} className="flex items-center justify-between bg-gray-900 p-2 rounded border border-gray-800">
+                                            <div className="flex items-center gap-2">
+                                                <Icon size={16} className={config.color} />
+                                                <span className="text-xs text-gray-300 font-mono">{count}</span>
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => depositItem(resKey, 1, true)} className="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[10px] text-white">1</button>
+                                                <button onClick={() => depositItem(resKey, 10, true)} className="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[10px] text-white">10</button>
+                                                <button onClick={() => depositItem(resKey, count, true)} className="bg-yellow-900/40 hover:bg-yellow-900/60 px-2 py-1 rounded text-[10px] text-yellow-200 border border-yellow-800/50"><ChevronsRight size={10}/></button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {/* Items */}
+                            <div className="space-y-2 pt-4 border-t border-gray-800/50">
+                                {Object.keys(stats.storedItems).map(itemKey => {
+                                    const count = stats[itemKey as keyof PlayerStats] as number;
+                                    if (count <= 0) return null;
+                                    return (
+                                        <div key={itemKey} className="flex items-center justify-between bg-gray-900 p-2 rounded border border-gray-800">
+                                            <div className="flex items-center gap-2">
+                                                <Box size={16} className="text-gray-500" />
+                                                <span className="text-xs text-gray-300 capitalize">{itemKey.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                                <span className="text-xs font-bold text-white">x{count}</span>
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => depositItem(itemKey, 1, false)} className="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[10px] text-white">1</button>
+                                                <button onClick={() => depositItem(itemKey, count, false)} className="bg-yellow-900/40 hover:bg-yellow-900/60 px-2 py-1 rounded text-[10px] text-yellow-200 border border-yellow-800/50"><ChevronsRight size={10}/></button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* RIGHT: BASE STORAGE */}
+                        <div className="flex flex-col gap-4 bg-gray-900/30 p-4 rounded-xl border border-gray-800">
+                            <h3 className="text-xs font-bold text-yellow-600 uppercase tracking-widest border-b border-yellow-900/30 pb-2 text-right">{t.storage_inv}</h3>
+                            {/* Stored Resources */}
+                            <div className="space-y-2">
+                                {Object.keys(stats.storedResources).map(resKey => {
+                                    // @ts-ignore
+                                    const count = stats.storedResources[resKey];
+                                    const config = RESOURCE_CONFIG[resKey];
+                                    const Icon = config.icon;
+                                    if (count <= 0) return null;
+                                    return (
+                                        <div key={resKey} className="flex items-center justify-between bg-black/40 p-2 rounded border border-yellow-900/20">
+                                            <div className="flex gap-1">
+                                                <button onClick={() => withdrawItem(resKey, count, true)} className="bg-yellow-900/40 hover:bg-yellow-900/60 px-2 py-1 rounded text-[10px] text-yellow-200 border border-yellow-800/50"><ArrowLeft size={10}/></button>
+                                                <button onClick={() => withdrawItem(resKey, 10, true)} className="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[10px] text-white">10</button>
+                                                <button onClick={() => withdrawItem(resKey, 1, true)} className="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[10px] text-white">1</button>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-gray-300 font-mono">{count}</span>
+                                                <Icon size={16} className={config.color} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                             {/* Stored Items */}
+                             <div className="space-y-2 pt-4 border-t border-gray-800/50">
+                                {Object.keys(stats.storedItems).map(itemKey => {
+                                    // @ts-ignore
+                                    const count = stats.storedItems[itemKey];
+                                    if (count <= 0) return null;
+                                    return (
+                                        <div key={itemKey} className="flex items-center justify-between bg-black/40 p-2 rounded border border-yellow-900/20">
+                                            <div className="flex gap-1">
+                                                <button onClick={() => withdrawItem(itemKey, count, false)} className="bg-yellow-900/40 hover:bg-yellow-900/60 px-2 py-1 rounded text-[10px] text-yellow-200 border border-yellow-800/50"><ArrowLeft size={10}/></button>
+                                                <button onClick={() => withdrawItem(itemKey, 1, false)} className="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[10px] text-white">1</button>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold white">x{count}</span>
+                                                <span className="text-xs text-gray-300 capitalize text-right">{itemKey.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                                <Box size={16} className="text-gray-500" />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* INVENTORY - Updated for Rare Slime */}
         {gameState === GameState.INVENTORY && (
             <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 p-2 md:p-8">
                 <div className="w-[98%] md:w-[95%] max-w-4xl h-auto max-h-[85vh] bg-gray-950 border-2 border-gray-800 rounded-xl overflow-hidden flex flex-col shadow-2xl relative">
@@ -1748,6 +1762,7 @@ const App: React.FC = () => {
                          {/* Equipment */}
                          <div>
                              <h3 className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest mb-2 md:mb-4 border-b border-gray-800 pb-2">{t.weapons}</h3>
+                             {/* ... Weapon list (same as before) ... */}
                              <div className="space-y-2 md:space-y-3">
                                  {stats.unlockedWeapons.length === 0 && <div className="text-gray-600 italic text-xs md:text-sm">{t.inv_empty}</div>}
                                  {stats.unlockedWeapons.map(wId => {
@@ -1780,6 +1795,8 @@ const App: React.FC = () => {
                                  {[
                                      { id: 'repair', count: stats.repairKits, name: t.item_repair, icon: Wrench, action: () => useItem('repair') },
                                      { id: 'tank', count: stats.oxygenTanks, name: t.item_tank, icon: Wind, action: () => useItem('oxygen_tank') },
+                                     { id: 'lantern', count: stats.lanterns, name: t.item_lantern, icon: Lightbulb, action: () => useItem('lantern') },
+                                     { id: 'teleporter', count: stats.teleporters, name: t.item_teleporter, icon: ArrowRightLeft, action: () => useItem('teleporter') },
                                      { id: 'injection', count: stats.healthInjections, name: t.item_injection, icon: Syringe, action: () => useItem('injection') },
                                      { id: 'booster', count: stats.immunityBoosters, name: t.item_booster, icon: Shield, action: () => useItem('booster') },
                                      { id: 'purifier', count: stats.purifiers, name: t.item_purifier, icon: Droplet, action: () => useItem('purifier') },
@@ -1792,7 +1809,7 @@ const App: React.FC = () => {
                                          <div className="text-[10px] md:text-xs text-gray-400">{item.name}</div>
                                          <button 
                                             onClick={item.action} 
-                                            disabled={item.count <= 0}
+                                            disabled={item.count <= 0 || (item.id === 'teleporter' && currentStage === 'BASE')}
                                             className="mt-1 w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-[10px] md:text-xs py-1 rounded text-gray-300"
                                          >
                                              {t.use}
@@ -1813,6 +1830,7 @@ const App: React.FC = () => {
                                  <ResourceItem icon={Droplet} count={stats.ice} label={t.res_ice} color="text-cyan-300" />
                                  <ResourceItem icon={Hexagon} count={stats.titanium} label={t.res_titanium} color="text-white" />
                                  <ResourceItem icon={Radiation} count={stats.uranium} label={t.res_uranium} color="text-green-500" />
+                                 <ResourceItem icon={FlaskConical} count={stats.rareSlime} label={t.res_rareSlime} color="text-lime-400" />
                              </div>
                              
                              <div className="mt-6 md:mt-8 bg-gray-900/50 p-3 md:p-4 rounded-lg border border-gray-800">
@@ -1829,7 +1847,7 @@ const App: React.FC = () => {
             </div>
         )}
         
-        {/* PAUSE MENU */}
+        {/* ... (Pause Menu, Game Over - keep same) ... */}
         {gameState === GameState.PAUSED && (
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
                 <div className="bg-gray-900 border-2 border-red-900 p-8 rounded-xl text-center shadow-[0_0_30px_rgba(255,0,0,0.15)] max-w-sm w-full animate-border-pulse">
@@ -1851,10 +1869,22 @@ const App: React.FC = () => {
                                 <span className="text-[10px] text-gray-400">{t.ambience}</span>
                              </button>
                         </div>
-                        {/* SUPER USER BUTTON */}
-                        <button onClick={activateSuperUser} className="w-full bg-purple-900/50 hover:bg-purple-800 border border-purple-500 text-purple-100 font-bold py-3 rounded-lg flex items-center justify-center gap-2 mt-4 transition-all hover:scale-105 shadow-[0_0_15px_rgba(147,51,234,0.3)]">
-                            <Zap size={20} /> {t.superuser}
-                        </button>
+
+                        {/* CHEAT CODE INPUT */}
+                        <div className="mt-4 pt-4 border-t border-gray-800">
+                            <div className="flex gap-2">
+                                <input 
+                                    type="password" 
+                                    placeholder={t.cheat_code} 
+                                    value={cheatCode}
+                                    onChange={(e) => setCheatCode(e.target.value)}
+                                    className="w-full bg-black border border-gray-700 rounded px-2 text-xs text-center text-red-500 font-mono tracking-widest focus:outline-none focus:border-red-500"
+                                />
+                                <button onClick={redeemCheatCode} className="bg-gray-800 hover:bg-gray-700 px-3 rounded text-[10px] font-bold text-gray-400 border border-gray-700">
+                                    <Terminal size={12} />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

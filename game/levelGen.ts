@@ -1,4 +1,5 @@
 
+
 import { LevelObject, PlayerStats } from '../types';
 import { BLOCK_SIZE, CHUNK_SIZE } from './constants';
 
@@ -9,7 +10,8 @@ export const loadOutsideStage = (w: number, h: number, addObject: (obj: LevelObj
 
 export const loadBaseStage = (w: number, h: number, stats: PlayerStats, addObject: (obj: LevelObject) => void) => {
     const expansion = stats.baseExpansionLevel || 0;
-    const roomW = 340 + (expansion * 150); 
+    // START SMALLER: 220 base + expansion steps
+    const roomW = 220 + (expansion * 160); 
     const roomH = 300; 
     const roomX = (w - roomW) / 2; 
     const roomY = (h - roomH) / 2;
@@ -19,14 +21,14 @@ export const loadBaseStage = (w: number, h: number, stats: PlayerStats, addObjec
     addObject({ x: roomX - 32, y: roomY - 32, width: 32, height: roomH + 64, type: 'solid', id: 'wall_l' });
     addObject({ x: roomX + roomW, y: roomY - 32, width: 32, height: roomH + 64, type: 'solid', id: 'wall_r' });
     
-    // Terminal
+    // Terminal - Always right side
     addObject({ x: roomX + roomW - 60, y: roomY + roomH - 20, width: 20, height: 20, type: 'solid', id: 'terminal' });
     
-    // Airlock
+    // Airlock - Always left side
     addObject({ x: roomX + 10, y: roomY + roomH - 40, width: 24, height: 40, type: 'base_entrance', id: 'airlock_inside' });
 
     // Laboratory Station
-    const labX = roomX + 120;
+    const labX = roomX + 100;
     addObject({ x: labX, y: roomY + roomH - 30, width: 30, height: 30, type: 'solid', id: 'lab_station' });
 
     // Decontamination Unit
@@ -39,8 +41,10 @@ export const loadBaseStage = (w: number, h: number, stats: PlayerStats, addObjec
     if (storeLvl > 0) {
         for (let i = 0; i < storeLvl; i++) {
              const crateSize = 24;
-             const xPos = roomX + 50 + (i * 30);
-             if (xPos < labX - 20) {
+             // Start placing crates to the right of the lab
+             const xPos = labX + 50 + (i * 30);
+             // Ensure it doesn't overlap terminal/decon on right side
+             if (xPos < roomW - 140) {
                  addObject({ x: xPos, y: roomY + roomH - crateSize, width: crateSize, height: crateSize, type: 'solid', id: `storage_${i}` });
              }
         }

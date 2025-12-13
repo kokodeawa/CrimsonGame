@@ -1,6 +1,7 @@
 
+
 import React, { useRef, useEffect } from 'react';
-import { GameState, Vector2, Particle, LevelObject, PlayerStats, Projectile, Language, FloatingText } from '../types';
+import { GameState, Vector2, Particle, LevelObject, PlayerStats, Projectile, Language, FloatingText, Enemy } from '../types';
 import { PIXEL_SCALE, BLOCK_SIZE, CHUNK_SIZE, STAGE_CONFIG } from '../game/constants';
 import { 
     createOffscreenCanvas, 
@@ -9,7 +10,8 @@ import {
     generateMetalTexture, 
     generateResourceTextures, 
     generatePlayerSprites, 
-    generateSpikyBackground 
+    generateSpikyBackground,
+    generateCockroachSprites 
 } from '../game/assets';
 import { loadBaseStage, loadMineStage, loadOutsideStage } from '../game/levelGen';
 
@@ -17,7 +19,7 @@ interface GameProps {
   gameState: GameState;
   stats: PlayerStats;
   onUpdateStats: (stats: Partial<PlayerStats>) => void;
-  onToggleBase: (isOpen: boolean, type?: 'engineering' | 'lab') => void;
+  onToggleBase: (isOpen: boolean, type?: 'engineering' | 'lab' | 'storage') => void;
   interactionTrigger: number;
   onCanInteract: (can: boolean) => void;
   onShowLocationSelect: () => void;
@@ -97,6 +99,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
     lastHardenedTextTime: 0, 
     oxygen: 100,
     infection: 0,
+    lanternTimeLeft: 0, 
     damageTimer: 0,
     infectionDamageTimer: 0,
     baseHealTimer: 0, 
@@ -119,6 +122,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
   const particlesRef = useRef<Particle[]>([]);
   const floatingTextsRef = useRef<FloatingText[]>([]);
   const projectilesRef = useRef<Projectile[]>([]);
+  const enemiesRef = useRef<Enemy[]>([]);
   
   const chunksRef = useRef<Map<string, LevelObject[]>>(new Map());
   const largeObjectsRef = useRef<LevelObject[]>([]);
@@ -209,6 +213,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
             case 'ui_close': osc.type='sine'; osc.frequency.setValueAtTime(1200, now); osc.frequency.linearRampToValueAtTime(600, now+0.1); gain.gain.setValueAtTime(0.15*vol, now); gain.gain.linearRampToValueAtTime(0, now+0.1); osc.start(now); osc.stop(now+0.1); break;
             case 'start': osc.type='sawtooth'; osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(800, now+0.5); gain.gain.setValueAtTime(0*vol, now); gain.gain.linearRampToValueAtTime(0.30*vol, now+0.1); gain.gain.exponentialRampToValueAtTime(0.001, now+1.0); osc.start(now); osc.stop(now+1.0); break;
             case 'teleport': osc.type='sine'; osc.frequency.setValueAtTime(100, now); osc.frequency.exponentialRampToValueAtTime(1500, now+0.8); gain.gain.setValueAtTime(0.30*vol, now); gain.gain.exponentialRampToValueAtTime(0.001, now+0.8); osc.start(now); osc.stop(now+0.8); break;
+            case 'squish': osc.type='sawtooth'; osc.frequency.setValueAtTime(300, now); osc.frequency.linearRampToValueAtTime(100, now+0.1); gain.gain.setValueAtTime(0.2*vol, now); gain.gain.exponentialRampToValueAtTime(0.001, now+0.1); osc.start(now); osc.stop(now+0.15); break;
             case 'creak': 
                 osc.type='sawtooth'; 
                 osc.frequency.setValueAtTime(150, now); 
@@ -266,10 +271,36 @@ export const LivingMetalGame: React.FC<GameProps> = ({
 
   const triggerShake = (intensity: number, duration: number) => { shakeRef.current.intensity = intensity; shakeRef.current.timer = duration; };
 
+  const spawnEnemies = () => {
+      enemiesRef.current = [];
+      const count = 8;
+      const w = STAGE_CONFIG.OUTSIDE.width;
+      
+      for(let i=0; i<count; i++) {
+          const typeR = Math.random();
+          let type: 'small' | 'medium' | 'large' = 'medium';
+          let width = 32; let height = 16; let hp = 60; let dmg = 10; let speed = 2;
+          
+          if (typeR < 0.3) {
+              type = 'small'; width = 24; height = 12; hp = 30; dmg = 5; speed = 3;
+          } else if (typeR > 0.8) {
+              type = 'large'; width = 48; height = 24; hp = 150; dmg = 20; speed = 1.2;
+          }
+          
+          enemiesRef.current.push({
+              id: Math.random(),
+              x: Math.random() * (w - 200) + 100,
+              y: Math.random() * 200 - 50, // Spawn near ceiling (inverted floor)
+              width, height, type, health: hp, maxHealth: hp, damage: dmg, speed,
+              vx: 0, vy: 0, animTimer: 0, facingRight: Math.random() > 0.5, isGrounded: false
+          });
+      }
+  };
+
   const loadCurrentStage = () => {
     try {
         clearObjects(); 
-        particlesRef.current = []; projectilesRef.current = []; floatingTextsRef.current = []; 
+        particlesRef.current = []; projectilesRef.current = []; floatingTextsRef.current = []; enemiesRef.current = [];
         
         const config = STAGE_CONFIG[stageRef.current];
         if (!config) return;
@@ -277,7 +308,10 @@ export const LivingMetalGame: React.FC<GameProps> = ({
         const w = config.width; const h = config.height;
         const addObj = (obj: LevelObject) => addObject(obj);
 
-        if (stageRef.current === 'OUTSIDE') loadOutsideStage(w, h, addObj); 
+        if (stageRef.current === 'OUTSIDE') {
+            loadOutsideStage(w, h, addObj); 
+            spawnEnemies();
+        }
         else if (stageRef.current === 'BASE') loadBaseStage(w, h, statsRef.current, addObj); 
         else if (stageRef.current === 'MINE') loadMineStage(w, h, statsRef.current, addObj);
         
@@ -326,6 +360,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
         assetsRef.current.blockTextures = generateResourceTextures();
         assetsRef.current.cracks = generateCrackTextures(); 
         assetsRef.current.player = generatePlayerSprites();
+        assetsRef.current.roach = generateCockroachSprites(); // Roach Sprite
         assetsRef.current.glow = generateGlowSprite(150, 'rgba(200, 255, 255, 0.08)');
         assetsRef.current.redGlow = generateGlowSprite(60, 'rgba(255, 0, 0, 0.15)');
         assetsRef.current.terminalGlow = generateGlowSprite(40, 'rgba(50, 255, 50, 0.1)');
@@ -356,7 +391,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
       initAudio();
       keysRef.current.add(e.code);
       if (e.code === 'KeyF') { 
-          if (gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU) {
+          if (gameState === GameState.BASE_MENU || gameState === GameState.LAB_MENU || gameState === GameState.STORAGE_MENU) {
               playSfx('ui_close'); onToggleBase(false);
           } else {
               handleInteraction();
@@ -371,7 +406,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
     const handleTouchStart = (e: TouchEvent) => {
         if (e.target !== canvasRef.current) return; if (gameState !== GameState.PLAYING) return; initAudio(); if (e.cancelable) e.preventDefault();
         if (!canvasRef.current) return; const rect = canvasRef.current.getBoundingClientRect();
-        const rightStickX = rect.width - 100; const rightStickY = rect.height - 100; const rightStickRadius = 60;
+        const rightStickX = rect.width - 80; const rightStickY = rect.height - 80; const rightStickRadius = 50;
         for (let i = 0; i < e.changedTouches.length; i++) {
             const t = e.changedTouches[i]; const tx = t.clientX - rect.left; const ty = t.clientY - rect.top; const distRight = Math.sqrt(Math.pow(tx - rightStickX, 2) + Math.pow(ty - rightStickY, 2));
             if (distRight < rightStickRadius + 20) { if (!rightJoystickRef.current.active) { rightJoystickRef.current = { active: true, originX: rightStickX, originY: rightStickY, currentX: tx, currentY: ty, id: t.identifier }; } } else if (tx < rect.width / 2) { if (!leftJoystickRef.current.active) { leftJoystickRef.current = { active: true, originX: tx, originY: ty, currentX: tx, currentY: ty, id: t.identifier }; } }
@@ -392,6 +427,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
         const interactId = playerRef.current.canInteractWith;
         if (interactId === 'terminal') { playSfx('ui_open'); onToggleBase(true, 'engineering'); } 
         else if (interactId === 'lab_station') { onToggleBase(true, 'lab'); }
+        else if (interactId && interactId.startsWith('storage_')) { onToggleBase(true, 'storage'); }
         else if (interactId === 'airlock_outside') { onTravel('BASE'); } 
         else if (interactId === 'airlock_inside') { onShowLocationSelect(); } 
         else if (interactId === 'mine_door_inside') { onShowLocationSelect(); }
@@ -437,6 +473,15 @@ export const LivingMetalGame: React.FC<GameProps> = ({
                           if (obj.resourceType === 'infected_living_metal') { playSfx('damage'); onUpdateStats({ infection: Math.min(100, currentStats.infection + 3) }); spawnFloatingText(objCenterX, objCenterY, `+3% Infection`, '#0f0'); spawnParticles(objCenterX, objCenterY, 5, '#0f0', isInvertedWorld ? -1 : 1); if (Math.random() < 0.30) { const scrapAmount = Math.floor(Math.random() * 3) + 1; onUpdateStats({ scraps: currentStats.scraps + scrapAmount }); spawnFloatingText(objCenterX, objCenterY, `+${scrapAmount} Scrap`, '#aaa'); playSfx('collect'); } } else if (obj.resourceType === 'living_metal') { playSfx('mine_metal'); if (Math.random() < 0.30) { const scrapAmount = Math.floor(Math.random() * 3) + 1; onUpdateStats({ scraps: currentStats.scraps + scrapAmount }); spawnFloatingText(objCenterX, objCenterY, `+${scrapAmount} Scrap`, '#aaa'); playSfx('collect'); } } else { playSfx('mine'); }
                           let shakeInt = 3; let shakeDur = 5; let pColor = '#500'; let resourceName = ""; let gainedAmount = 0; const update: Partial<PlayerStats> = {}; const isSpanish = language === 'es';
                           if (obj.resourceType === 'scrap') { gainedAmount = 2; update.scraps = currentStats.scraps + gainedAmount; pColor = '#aaa'; resourceName = isSpanish ? "Chatarra" : "Scraps"; } else if (obj.resourceType === 'wood') { gainedAmount = 1; update.wood = (currentStats.wood || 0) + gainedAmount; pColor = '#654321'; resourceName = isSpanish ? "Madera" : "Wood"; } else if (obj.resourceType === 'iron') { gainedAmount = 1; update.iron = (currentStats.iron || 0) + gainedAmount; pColor = '#ccc'; resourceName = isSpanish ? "Hierro" : "Iron"; } else if (obj.resourceType === 'ice') { gainedAmount = 1; update.ice = (currentStats.ice || 0) + gainedAmount; pColor = '#0ff'; resourceName = isSpanish ? "Hielo" : "Ice"; } else if (obj.resourceType === 'coal') { gainedAmount = 1; update.coal = (currentStats.coal || 0) + gainedAmount; pColor = '#111'; resourceName = isSpanish ? "Carbón" : "Coal"; } else if (obj.resourceType === 'titanium') { gainedAmount = 1; update.titanium = (currentStats.titanium || 0) + gainedAmount; pColor = '#fff'; resourceName = isSpanish ? "Titanio" : "Titanium"; shakeInt = 6; shakeDur = 10; } else if (obj.resourceType === 'uranium') { gainedAmount = 1; update.uranium = (currentStats.uranium || 0) + gainedAmount; pColor = '#0f0'; resourceName = isSpanish ? "Uranio" : "Uranium"; shakeInt = 6; shakeDur = 10; onUpdateStats({ health: Math.max(0, currentStats.health - 5) }); playSfx('damage'); } else { if (obj.resourceType !== 'living_metal' && obj.resourceType !== 'infected_living_metal' && Math.random() > 0.8) { gainedAmount = 1; update.scraps = currentStats.scraps + 1; resourceName = isSpanish ? "Chatarra" : "Scrap"; } }
+                          
+                          // UNIQUE ITEM: Base Teleporter (1% Chance)
+                          if (Math.random() < 0.01) {
+                              update.teleporters = (currentStats.teleporters || 0) + 1;
+                              spawnFloatingText(objCenterX, objCenterY, isSpanish ? "TELETRANSPORTADOR" : "TELEPORTER", '#ff00ff');
+                              spawnParticles(objCenterX, objCenterY, 8, '#ff00ff', isInvertedWorld ? -1 : 1);
+                              playSfx('collect');
+                          }
+
                           triggerShake(shakeInt, shakeDur); if (gainedAmount > 0) { onUpdateStats(update); spawnFloatingText(objCenterX, objCenterY, `+${gainedAmount} ${resourceName}`, pColor === '#111' ? '#aaa' : pColor); playSfx('collect'); } spawnParticles(objCenterX, objCenterY, 3, pColor, isInvertedWorld ? -1 : 1);
                       }
                   }
@@ -446,7 +491,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
       return hitSomething;
   };
 
-  const update = () => {
+  const update = (deltaTimeMs: number) => {
     // Prevent update if assets not loaded or loading screen active
     if (isLoadingRef.current || !assetsLoadedRef.current) return;
 
@@ -473,7 +518,21 @@ export const LivingMetalGame: React.FC<GameProps> = ({
     if (!isPaused) {
         if (currentStats.health <= 0) { onGameOver(); return; }
         const isInvertedWorld = stageRef.current === 'OUTSIDE'; const isBase = stageRef.current === 'BASE';
+        
+        // Sync vital stats if external update happened (e.g. from potion/tank usage)
         if (currentStats.infection !== undefined && Math.abs(currentStats.infection - p.infection) > 1) { p.infection = currentStats.infection; }
+        if (currentStats.oxygen !== undefined && Math.abs(currentStats.oxygen - p.oxygen) > 1) { p.oxygen = currentStats.oxygen; }
+        if (currentStats.lanternTimeLeft !== undefined) {
+             if (Math.abs(currentStats.lanternTimeLeft - p.lanternTimeLeft) > 1) {
+                 p.lanternTimeLeft = currentStats.lanternTimeLeft;
+             }
+        }
+
+        // Handle Lantern Timer Decay
+        if (p.lanternTimeLeft > 0) {
+            p.lanternTimeLeft -= (deltaTimeMs / 1000);
+            if (p.lanternTimeLeft < 0) p.lanternTimeLeft = 0;
+        }
 
         if (!isBase) {
             const currentLevel = currentStats.oxygenLevel || 1; const totalDurationSeconds = 50 * Math.pow(1.10, currentLevel - 1); const decayPerFrame = 100 / (totalDurationSeconds * 60);
@@ -488,7 +547,17 @@ export const LivingMetalGame: React.FC<GameProps> = ({
             if (currentStats.health < currentStats.maxHealth) { p.baseHealthRegenTimer++; if (p.baseHealthRegenTimer > 60) { p.baseHealthRegenTimer = 0; onUpdateStats({ health: Math.min(currentStats.maxHealth, currentStats.health + 1) }); } }
         }
 
-        if (Math.floor(p.oxygen) !== Math.floor(currentStats.oxygen) || Math.floor(p.infection) !== Math.floor(currentStats.infection)) { onUpdateStats({ oxygen: p.oxygen, infection: p.infection }); }
+        // Sync updates to App.tsx
+        if (Math.floor(p.oxygen) !== Math.floor(currentStats.oxygen) || 
+            Math.floor(p.infection) !== Math.floor(currentStats.infection) ||
+            Math.floor(p.lanternTimeLeft) !== Math.floor(currentStats.lanternTimeLeft || 0)) { 
+            onUpdateStats({ 
+                oxygen: p.oxygen, 
+                infection: p.infection,
+                lanternTimeLeft: p.lanternTimeLeft 
+            }); 
+        }
+
         if (p.oxygen <= 0) { p.damageTimer++; if (p.damageTimer > 60) { p.damageTimer = 0; onUpdateStats({ health: Math.max(0, currentStats.health - 5) }); spawnParticles(p.pos.x + p.width/2, p.pos.y + p.height/2, 5, '#f00', isInvertedWorld ? -1 : 1); triggerShake(3, 10); playSfx('damage'); } } else { p.damageTimer = 0; }
         if (p.infection >= 100) { p.infectionDamageTimer++; if (p.infectionDamageTimer > 120) { p.infectionDamageTimer = 0; onUpdateStats({ health: Math.max(0, currentStats.health - 5) }); spawnParticles(p.pos.x + p.width/2, p.pos.y + p.height/2, 5, '#a0f', isInvertedWorld ? -1 : 1); triggerShake(2, 5); playSfx('damage'); } } else { p.infectionDamageTimer = 0; }
 
@@ -528,11 +597,95 @@ export const LivingMetalGame: React.FC<GameProps> = ({
 
         for (let i = 0; i < nbLen; i++) { 
             const obj = nearbyObjects[i];
-            if (p.pos.x < obj.x + obj.width && p.pos.x + p.width > obj.x && p.pos.y < obj.y + obj.height && p.pos.y + p.height > obj.y) { if (obj.type === 'solid' || obj.type === 'destructible') { const dx = (p.pos.x + p.width/2) - (obj.x + obj.width/2); const dy = (p.pos.y + p.height/2) - (obj.y + obj.height/2); const w2 = (p.width + obj.width) / 2; const h2 = (p.height + obj.height) / 2; const cx = Math.abs(dx); const cy = Math.abs(dy); if (Math.abs(cx - w2) < Math.abs(cy - h2)) { p.vel.x = 0; p.pos.x = dx > 0 ? obj.x + obj.width : obj.x - p.width; } else { if (isInvertedWorld) { if (dy > 0) { p.pos.y = obj.y + obj.height; p.vel.y = 0; p.isGrounded = true; p.jumpCount = 0; } else { p.pos.y = obj.y - p.height; p.vel.y = 0; } } else { if (dy < 0) { p.pos.y = obj.y - p.height; p.vel.y = 0; p.isGrounded = true; p.jumpCount = 0; } else { p.pos.y = obj.y + obj.height; p.vel.y = 0; } } } } if (obj.type === 'hazard' || obj.resourceType === 'uranium') { inHazard = true; } } if (obj.id === 'terminal' || obj.id === 'lab_station' || obj.id.includes('airlock') || obj.id.includes('mine_door')) { const objCenterX = obj.x + obj.width / 2; const objCenterY = obj.y + obj.height / 2; const margin = 40; const xOverlap = Math.abs(playerCenterX - objCenterX) < (obj.width/2 + p.width/2 + margin); const yOverlap = Math.abs(playerCenterY - objCenterY) < (obj.height/2 + p.height/2 + margin); if (xOverlap && yOverlap) { p.canInteractWith = obj.id; } } 
+            if (p.pos.x < obj.x + obj.width && p.pos.x + p.width > obj.x && p.pos.y < obj.y + obj.height && p.pos.y + p.height > obj.y) { if (obj.type === 'solid' || obj.type === 'destructible') { const dx = (p.pos.x + p.width/2) - (obj.x + obj.width/2); const dy = (p.pos.y + p.height/2) - (obj.y + obj.height/2); const w2 = (p.width + obj.width) / 2; const h2 = (p.height + obj.height) / 2; const cx = Math.abs(dx); const cy = Math.abs(dy); if (Math.abs(cx - w2) < Math.abs(cy - h2)) { p.vel.x = 0; p.pos.x = dx > 0 ? obj.x + obj.width : obj.x - p.width; } else { if (isInvertedWorld) { if (dy > 0) { p.pos.y = obj.y + obj.height; p.vel.y = 0; p.isGrounded = true; p.jumpCount = 0; } else { p.pos.y = obj.y - p.height; p.vel.y = 0; } } else { if (dy < 0) { p.pos.y = obj.y - p.height; p.vel.y = 0; p.isGrounded = true; p.jumpCount = 0; } else { p.pos.y = obj.y + obj.height; p.vel.y = 0; } } } } if (obj.type === 'hazard' || obj.resourceType === 'uranium') { inHazard = true; } } if (obj.id === 'terminal' || obj.id === 'lab_station' || obj.id.startsWith('storage_') || obj.id.includes('airlock') || obj.id.includes('mine_door')) { const objCenterX = obj.x + obj.width / 2; const objCenterY = obj.y + obj.height / 2; const margin = 40; const xOverlap = Math.abs(playerCenterX - objCenterX) < (obj.width/2 + p.width/2 + margin); const yOverlap = Math.abs(playerCenterY - objCenterY) < (obj.height/2 + p.height/2 + margin); if (xOverlap && yOverlap) { p.canInteractWith = obj.id; } } 
         }
 
         if (!!prevCanInteract !== !!p.canInteractWith) { onCanInteract(!!p.canInteractWith); }
         if (inHazard) { p.hazardTimer++; if (p.hazardTimer > 30) { p.hazardTimer = 0; onUpdateStats({ health: Math.max(0, currentStats.health - 5) }); spawnParticles(p.pos.x + p.width/2, p.pos.y + p.height/2, 3, '#0f0', isInvertedWorld ? -1 : 1); triggerShake(4, 10); playSfx('damage'); } } else { p.hazardTimer = 0; }
+        
+        // --- ENEMY LOGIC (Cockroaches) ---
+        if (stageRef.current === 'OUTSIDE') {
+            for (let i = enemiesRef.current.length - 1; i >= 0; i--) {
+                const e = enemiesRef.current[i];
+                // Move towards player
+                const dx = p.pos.x - e.x;
+                const dy = p.pos.y - e.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                // Chase
+                if (dist < 500) {
+                     e.facingRight = dx > 0;
+                     e.vx = e.facingRight ? e.speed : -e.speed;
+                     
+                     // Jump attack logic (inverted gravity)
+                     if (e.isGrounded && Math.abs(dx) < 100 && Math.random() < 0.05) {
+                         e.vy = -5; // Jump "down" towards player (since gravity is up)
+                         e.isGrounded = false;
+                     }
+                } else {
+                    e.vx *= 0.9;
+                }
+                
+                // Gravity (Inverted)
+                e.vy -= 0.2; 
+                e.x += e.vx;
+                e.y += e.vy;
+                
+                // Animation
+                e.animTimer++;
+
+                // Ceiling collision (Inverted floor is roughly y = -20 to 0)
+                if (e.y < -20) {
+                    e.y = -20;
+                    e.vy = 0;
+                    e.isGrounded = true;
+                }
+                
+                // Player Collision (Damage)
+                const pCx = p.pos.x + p.width/2;
+                const pCy = p.pos.y + p.height/2;
+                const eCx = e.x + e.width/2;
+                const eCy = e.y + e.height/2;
+                
+                if (Math.abs(pCx - eCx) < (p.width + e.width)/2 && Math.abs(pCy - eCy) < (p.height + e.height)/2) {
+                    // Hit player
+                    onUpdateStats({ health: Math.max(0, currentStats.health - e.damage) });
+                    playSfx('damage');
+                    triggerShake(4, 5);
+                    spawnParticles(pCx, pCy, 3, '#f00', -1);
+                    // Knockback enemy
+                    e.vx = dx > 0 ? -5 : 5;
+                    e.vy = 5;
+                }
+                
+                // Projectile Collision
+                for (let j = projectilesRef.current.length - 1; j >= 0; j--) {
+                    const proj = projectilesRef.current[j];
+                    if (proj.x > e.x && proj.x < e.x + e.width && proj.y > e.y && proj.y < e.y + e.height) {
+                         // Hit enemy
+                         let dmg = 10;
+                         if (proj.type === 'sword') dmg = 40;
+                         if (proj.type === 'laser') dmg = 5;
+                         
+                         e.health -= dmg;
+                         spawnParticles(e.x + e.width/2, e.y + e.height/2, 2, '#4a1515', -1);
+                         playSfx('squish');
+                         
+                         if (proj.type !== 'sword') projectilesRef.current.splice(j, 1);
+                         
+                         if (e.health <= 0) {
+                             // Die
+                             const slimeDrop = Math.floor(Math.random() * 3) + 1; // 1-3
+                             onUpdateStats({ rareSlime: (currentStats.rareSlime || 0) + slimeDrop });
+                             spawnFloatingText(e.x, e.y, `+${slimeDrop} Moco Raro`, '#39ff14');
+                             spawnParticles(e.x, e.y, 8, '#39ff14', -1);
+                             enemiesRef.current.splice(i, 1);
+                         }
+                         break; // One projectile hits one enemy (except sword could cleave, but keep simple)
+                    }
+                }
+            }
+        }
     }
 
     const worldW = STAGE_CONFIG[stageRef.current].width;
@@ -604,6 +757,33 @@ export const LivingMetalGame: React.FC<GameProps> = ({
         } 
     }
 
+    // DRAW ENEMIES
+    if (stageRef.current === 'OUTSIDE' && assetsRef.current.roach) {
+        enemiesRef.current.forEach(e => {
+            if (e.x > camera.x - 50 && e.x < camera.x + w + 50) {
+                 ctx.save();
+                 ctx.translate(e.x + e.width/2, e.y + e.height/2);
+                 // Inverted World: They walk on ceiling (negative Y), so flip Y? 
+                 // Actually they are 'falling up'. Visual orientation: feet towards ceiling.
+                 // Ceiling is roughly y = -20.
+                 // If facing right, scale X 1.
+                 ctx.scale(e.facingRight ? 1 : -1, -1); // Flip Y to stand on ceiling
+                 
+                 const frame = Math.floor(e.animTimer / 10) % 2;
+                 const sx = frame * 32;
+                 ctx.drawImage(assetsRef.current.roach, sx, 0, 32, 16, -e.width/2, -e.height/2, e.width, e.height);
+                 
+                 // HP Bar
+                 ctx.fillStyle = '#f00';
+                 ctx.fillRect(-10, -e.height/2 - 5, 20, 2);
+                 ctx.fillStyle = '#0f0';
+                 ctx.fillRect(-10, -e.height/2 - 5, 20 * (e.health / e.maxHealth), 2);
+                 
+                 ctx.restore();
+            }
+        });
+    }
+
     projectilesRef.current.forEach(proj => { 
         if (proj.x > camera.x - 50 && proj.x < camera.x + w + 50) { 
             ctx.save(); ctx.translate(proj.x | 0, proj.y | 0); ctx.rotate(proj.angle); 
@@ -638,7 +818,13 @@ export const LivingMetalGame: React.FC<GameProps> = ({
             fogCtx.clearRect(0, 0, fogW, fogH); 
             const ambientOpacity = 0.88 + Math.sin(time / 2000) * 0.04; fogCtx.fillStyle = `rgba(0, 0, 0, ${ambientOpacity})`; fogCtx.fillRect(0, 0, fogW, fogH); 
             const pScreenX = (p.pos.x - (camera.x + shake.x) + p.width/2); const pScreenY = (p.pos.y - (camera.y + shake.y) + p.height/2);
-            const scannerLvl = statsRef.current.oreScannerLevel || 1; let baseRadius = 120; if (statsRef.current.unlockedLantern) { baseRadius = 220; }
+            
+            // New Lantern Logic
+            const scannerLvl = statsRef.current.oreScannerLevel || 1; 
+            let baseRadius = 120; 
+            // Check timer instead of boolean
+            if (statsRef.current.lanternTimeLeft > 0) { baseRadius = 220; }
+            
             const radiusPulse = 1.0 + Math.sin(time / 600) * 0.03; const visionRadius = (baseRadius + ((scannerLvl - 1) * 30)) * radiusPulse; 
             fogCtx.globalCompositeOperation = 'destination-out'; const grad = fogCtx.createRadialGradient(pScreenX, pScreenY, visionRadius * 0.2, pScreenX, pScreenY, visionRadius); grad.addColorStop(0, 'rgba(0,0,0,1)'); grad.addColorStop(0.4, 'rgba(0,0,0,0.9)'); grad.addColorStop(0.7, 'rgba(0,0,0,0.5)'); grad.addColorStop(1, 'rgba(0,0,0,0)'); fogCtx.fillStyle = grad; fogCtx.beginPath(); fogCtx.arc(pScreenX, pScreenY, visionRadius, 0, Math.PI * 2); fogCtx.fill(); fogCtx.globalCompositeOperation = 'source-over'; 
             ctx.drawImage(fogCanvasRef.current, 0, 0, screenW, screenH); 
@@ -667,11 +853,11 @@ export const LivingMetalGame: React.FC<GameProps> = ({
     
     const isMobileView = window.innerWidth < 1024 || navigator.maxTouchPoints > 0;
     if (isMobileView) { 
-        const rjX = screenW - 100; const rjY = screenH - 100; 
-        ctx.beginPath(); ctx.strokeStyle = mobileActionMode === 'MINE' ? 'rgba(0, 255, 255, 0.1)' : 'rgba(255, 50, 50, 0.1)'; ctx.lineWidth = 2; ctx.arc(rjX, rjY, 60, 0, Math.PI*2); ctx.stroke(); 
+        const rjX = screenW - 80; const rjY = screenH - 80; 
+        ctx.beginPath(); ctx.strokeStyle = mobileActionMode === 'MINE' ? 'rgba(0, 255, 255, 0.1)' : 'rgba(255, 50, 50, 0.1)'; ctx.lineWidth = 2; ctx.arc(rjX, rjY, 50, 0, Math.PI*2); ctx.stroke(); 
         ctx.beginPath(); let knobX = rjX; let knobY = rjY; 
         if (rightJoystickRef.current.active) { const j = rightJoystickRef.current; let dx = j.currentX - j.originX; let dy = j.currentY - j.originY; const dist = Math.sqrt(dx*dx + dy*dy); if (dist > 60) { dx = (dx / dist) * 60; dy = (dy / dist) * 60; } knobX += dx; knobY += dy; ctx.fillStyle = mobileActionMode === 'MINE' ? 'rgba(0, 255, 255, 0.6)' : 'rgba(255, 50, 50, 0.6)'; } else { ctx.fillStyle = 'rgba(100, 100, 100, 0.2)'; } 
-        ctx.arc(knobX, knobY, 20, 0, Math.PI*2); ctx.fill(); 
+        ctx.arc(knobX, knobY, 15, 0, Math.PI*2); ctx.fill(); 
     }
     ctx.restore();
     ctx.fillStyle = 'rgba(0,0,10,0.2)'; ctx.fillRect(0,0, screenW, screenH);
@@ -683,7 +869,7 @@ export const LivingMetalGame: React.FC<GameProps> = ({
         const deltaTime = time - lastTimeRef.current;
         if (deltaTime >= 16) {
             lastTimeRef.current = time - (deltaTime % 16);
-            update();
+            update(deltaTime);
             if (canvasRef.current) {
                 const ctx = canvasRef.current.getContext('2d', { alpha: false });
                 if (ctx) draw(ctx, time / 16);

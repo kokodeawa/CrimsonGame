@@ -1,4 +1,5 @@
 
+
 import { BLOCK_SIZE } from './constants';
 
 export const createOffscreenCanvas = (w: number, h: number) => {
@@ -47,6 +48,66 @@ export const generateMetalTexture = () => {
   ctx.fillStyle = '#2d0a0a';
   ctx.fillRect(0, 0, 32, 32);
   return canvas;
+};
+
+export const generateCockroachSprites = () => {
+    // Generates a spritesheet with 2 frames of animation for different sizes
+    const { canvas, ctx } = createOffscreenCanvas(64, 32);
+    
+    // Helper to draw a roach
+    const drawRoach = (x: number, y: number, w: number, h: number, frame: number) => {
+        ctx.save();
+        ctx.translate(x, y);
+        
+        // Legs
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = 1;
+        const legOffset = frame === 0 ? 2 : -2;
+        
+        ctx.beginPath();
+        // Left legs
+        ctx.moveTo(w*0.2, h*0.5); ctx.lineTo(-w*0.2, h*0.2 + legOffset);
+        ctx.moveTo(w*0.5, h*0.5); ctx.lineTo(w*0.5, -h*0.2 - legOffset);
+        ctx.moveTo(w*0.8, h*0.5); ctx.lineTo(w*1.2, h*0.2 + legOffset);
+        // Right legs
+        ctx.moveTo(w*0.2, h*0.5); ctx.lineTo(-w*0.2, h*0.8 - legOffset);
+        ctx.moveTo(w*0.5, h*0.5); ctx.lineTo(w*0.5, h*1.2 + legOffset);
+        ctx.moveTo(w*0.8, h*0.5); ctx.lineTo(w*1.2, h*0.8 - legOffset);
+        ctx.stroke();
+
+        // Body
+        ctx.fillStyle = '#3e2723'; // Dark brown
+        ctx.beginPath();
+        ctx.ellipse(w/2, h/2, w/2, h/3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Head
+        ctx.fillStyle = '#5d4037';
+        ctx.beginPath();
+        ctx.ellipse(w*0.8, h/2, w/4, h/4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Antennae
+        ctx.strokeStyle = '#a1887f';
+        ctx.beginPath();
+        ctx.moveTo(w*0.9, h*0.4); ctx.lineTo(w*1.4, h*0.1 + (frame*2));
+        ctx.moveTo(w*0.9, h*0.6); ctx.lineTo(w*1.4, h*0.9 - (frame*2));
+        ctx.stroke();
+        
+        // Eyes
+        ctx.fillStyle = '#f00'; // Red evil eyes
+        ctx.fillRect(w*0.85, h*0.35, 1, 1);
+        ctx.fillRect(w*0.85, h*0.65, 1, 1);
+
+        ctx.restore();
+    };
+
+    // Frame 1
+    drawRoach(0, 0, 32, 16, 0);
+    // Frame 2
+    drawRoach(32, 0, 32, 16, 1);
+    
+    return canvas;
 };
 
 export const generateResourceTextures = () => {
@@ -160,6 +221,18 @@ export const generateResourceTextures = () => {
       ctx.fillStyle = '#000'; ctx.fillRect(2, 2, 1, 1);
       ctx.fillStyle = '#ccffcc'; ctx.fillRect(3, 3, 1, 1);
       textures['uranium'] = canvas;
+  }
+  {
+      // Rare Slime (Moco raro)
+      const { canvas, ctx } = init();
+      ctx.fillStyle = '#000000'; ctx.fillRect(0,0,size,size);
+      ctx.fillStyle = '#39ff14'; // Bright green
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size/3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#ccffcc';
+      ctx.fillRect(size/2 - 1, size/2 - 1, 2, 2);
+      textures['rareSlime'] = canvas;
   }
   return textures;
 };
