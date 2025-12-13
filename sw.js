@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'crimson-pwa-v12-fix-url';
+const CACHE_NAME = 'crimson-pwa-v14-fix-blackscreen';
 
 // Files we want to cache immediately on install
 const PRECACHE_URLS = [
@@ -44,7 +44,6 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // Strategy 1: For HTML Navigation (index.html) -> Network First, Fallback to Cache
-  // This ensures the user gets game updates if online, but works offline.
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -64,8 +63,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy 2: For Assets (JS, CSS, Images, Audio) -> Cache First, Fallback to Network
-  // This makes the game load instantly.
+  // Strategy 2: For Assets -> Cache First, Fallback to Network
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -73,19 +71,15 @@ self.addEventListener('fetch', (event) => {
       }
 
       return fetch(event.request).then((networkResponse) => {
-        // Validate response
         if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
           return networkResponse;
         }
-
         const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseToCache);
         });
-
         return networkResponse;
       }).catch(err => {
-          // Swallow errors for non-critical assets to prevent crashes
           // console.log('Fetch failed for', event.request.url);
       });
     })

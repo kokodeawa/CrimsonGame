@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'crimson-pwa-v13-gh-pages';
+const CACHE_NAME = 'crimson-pwa-v14-fix-blackscreen';
 
 // Files we want to cache immediately on install
 const PRECACHE_URLS = [
