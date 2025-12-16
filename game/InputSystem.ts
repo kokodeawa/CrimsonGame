@@ -89,7 +89,6 @@ export class InputSystem {
         const rect = this.canvas.getBoundingClientRect();
 
         // Used to track if this touch event was consumed by a joystick
-        // If not, it might be a "tap" for building/interaction which is handled by mouse emulation
         let touchConsumed = false;
 
         for (let i = 0; i < e.changedTouches.length; i++) {
@@ -97,22 +96,22 @@ export class InputSystem {
             const tx = t.clientX - rect.left;
             const ty = t.clientY - rect.top;
 
-            // Restrict Joysticks to the bottom 20% of the screen (Lowered from 25%)
-            const zoneTop = rect.height * 0.80; 
+            // Restrict Joysticks to the bottom 50% of the screen (Increased from 25% for better usability)
+            const zoneTop = rect.height * 0.50; 
 
             // Logic:
             // 1. Must be in the bottom section
-            // 2. Left Stick: Left 30% of width (Reduced from 35%)
-            // 3. Right Stick: Right 30% of width (Reduced from 35% - starts at 70%)
+            // 2. Left Stick: Left 40% of width (Increased from 30%)
+            // 3. Right Stick: Right 40% of width (Increased from 30% - starts at 60%)
             
             if (ty > zoneTop) {
-                if (tx < rect.width * 0.30) {
+                if (tx < rect.width * 0.40) {
                     // Left Stick Zone
                     if (!this.leftJoystick.active) {
                         this.leftJoystick = { active: true, originX: tx, originY: ty, currentX: tx, currentY: ty, id: t.identifier };
                         touchConsumed = true;
                     }
-                } else if (tx > rect.width * 0.70) {
+                } else if (tx > rect.width * 0.60) {
                     // Right Stick Zone
                     if (!this.rightJoystick.active) {
                         this.rightJoystick = { active: true, originX: tx, originY: ty, currentX: tx, currentY: ty, id: t.identifier };

@@ -198,8 +198,8 @@ export const LivingMetalGame: React.FC<LivingMetalGameProps> = (props) => {
         selectedTargetIndexRef.current = 0;
         activeDoorSeqRef.current = null;
         
-        // Only trigger spawn animation ONCE per session and ONLY for BASE
-        if (stage === 'BASE' && !hasInitialSpawnedRef.current) {
+        // Only trigger spawn animation ONCE per session
+        if (!hasInitialSpawnedRef.current) {
             spawnTimerRef.current = 90; // 1.5 seconds at 60fps
             hasInitialSpawnedRef.current = true;
             // Delay slightly to ensure audio context is ready
@@ -389,7 +389,7 @@ export const LivingMetalGame: React.FC<LivingMetalGameProps> = (props) => {
             return;
         }
 
-        // --- TELEPORT ANIMATION LOGIC (INITIAL SPAWN) ---
+        // --- TELEPORT ANIMATION LOGIC ---
         if (spawnTimerRef.current > 0) {
             const p = playerRef.current;
             
@@ -397,12 +397,12 @@ export const LivingMetalGame: React.FC<LivingMetalGameProps> = (props) => {
             if (spawnTimerRef.current % 2 === 0) {
                 particlesRef.current.push({
                     id: Date.now() + Math.random(),
-                    x: p.x + Math.random() * p.width,
+                    x: p.x + p.width/2 + (Math.random() - 0.5) * 20,
                     y: p.y + p.height,
                     vx: (Math.random() - 0.5) * 1,
-                    vy: -(Math.random() * 2 + 1), // Rise up
+                    vy: -(Math.random() * 2 + 2),
                     life: 0.8,
-                    color: Math.random() > 0.5 ? '#00ffff' : '#ffffff', // Cyan & White
+                    color: Math.random() > 0.5 ? '#00ffff' : '#ffffff',
                     size: Math.random() * 2 + 1
                 });
             }
@@ -411,25 +411,25 @@ export const LivingMetalGame: React.FC<LivingMetalGameProps> = (props) => {
             
             // Spawn impact on last frame
             if (spawnTimerRef.current === 1) {
-                cameraRef.current.shake = 10; // Moderate impact shake
-                audioRef.current.playSfx('break_stone', props.volumeSettings.sfx); // Heavy landing sound
+                cameraRef.current.shake = 15; // Big impact shake
+                audioRef.current.playSfx('break_stone', props.volumeSettings.sfx); // Use break sound as heavy impact
                 
-                // Explosion particles on finish (radial burst)
-                for(let i=0; i<15; i++) {
+                // Explosion particles on finish
+                for(let i=0; i<20; i++) {
                     particlesRef.current.push({
                         id: Date.now() + Math.random(),
                         x: p.x + p.width/2,
-                        y: p.y + p.height - 5,
-                        vx: (Math.random() - 0.5) * 6,
-                        vy: (Math.random() * -3) - 1,
-                        life: 1.2,
+                        y: p.y + p.height/2,
+                        vx: (Math.random() - 0.5) * 8,
+                        vy: (Math.random() - 0.5) * 8,
+                        life: 1.5,
                         color: '#00ffff',
                         size: Math.random() * 3 + 1
                     });
                 }
             }
             
-            // While spawning, keep player grounded/still
+            // While spawning, ensure player physics don't go wild, but maybe apply gravity to settle them
             p.vx = 0; 
             const gravity = 0.25; 
             p.vy += gravity;
@@ -440,8 +440,7 @@ export const LivingMetalGame: React.FC<LivingMetalGameProps> = (props) => {
             cameraRef.current.x += (p.x - canvasRef.current!.width / (2 * PIXEL_SCALE) - cameraRef.current.x) * 0.1;
             cameraRef.current.y += (p.y - canvasRef.current!.height / (2 * PIXEL_SCALE) - cameraRef.current.y) * 0.1;
             
-            // Skip player inputs during spawn
-            return; 
+            return; // Skip standard inputs
         }
 
         const p = playerRef.current;
@@ -467,8 +466,9 @@ export const LivingMetalGame: React.FC<LivingMetalGameProps> = (props) => {
             const diffX = j.currentX - j.originX;
             const diffY = j.currentY - j.originY;
             if (Math.abs(diffX) > 10) dx = diffX > 0 ? 1 : -1;
-            if (diffY < -30) jumpHeld = true;
-            if (diffY > 30) downHeld = true;
+            // Lowered thresholds for vertical movement (was 30) for easier jumping and dropping
+            if (diffY < -20) jumpHeld = true;
+            if (diffY > 20) downHeld = true;
         }
 
         p.vx = dx * moveSpeed;

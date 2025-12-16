@@ -3,8 +3,8 @@
   "name": "Crimson Inversion: Living Metal",
   "short_name": "Crimson",
   "description": "Survive the Inverted World. Build, Mine, Explore.",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/CrimsonGame/",
+  "scope": "/CrimsonGame/",
   "display": "standalone",
   "orientation": "landscape",
   "background_color": "#050505",
@@ -17,7 +17,7 @@
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23050505'/%3E%3Ccircle cx='50' cy='50' r='45' fill='%237f1d1d'/%3E%3Ccircle cx='50' cy='50' r='35' fill='%23dc2626'/%3E%3Cpath d='M20 50 Q 50 80 80 50' stroke='%23450a0a' stroke-width='5' fill='none' /%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23050505'/%3E%3Ccircle cx='50' cy='50' r='45' fill='%237f1d1d'/%3E%3Ccircle cx='50' cy='50' r='35' fill='%23dc2626'/%3E%3Cpath d='M20 50 Q 50 80 80 50' stroke='%23450a0a' stroke-width='5' fill='none' /%3E%3Ccircle cx='70' cy='30' r='10' fill='%23450a0a' opacity='0.5'/%3E%3C/svg%3E",
       "type": "image/svg+xml",
       "sizes": "512x512",
       "purpose": "any maskable"

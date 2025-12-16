@@ -1608,10 +1608,17 @@ const App: React.FC = () => {
                 {/* Hotbar Button & Panel */}
                 {gameState === GameState.PLAYING && (currentStage === 'BASE' || currentStage === 'MINE') && (
                     <>
-                        <button onClick={() => setHotbarExpanded(!hotbarExpanded)} className="absolute bottom-2 left-1/2 -translate-x-1/2 w-10 h-10 bg-black/50 backdrop-blur-md border border-gray-600/50 rounded-full flex items-center justify-center shadow-lg pointer-events-auto z-50 hover:bg-black/80 transition-colors">
-                            {hotbarExpanded ? <ChevronDown size={18} className="text-gray-300" /> : <ChevronUp size={18} className="text-gray-300" />}
+                        <button 
+                            onClick={() => setHotbarExpanded(!hotbarExpanded)} 
+                            className="absolute left-1/2 -translate-x-1/2 w-12 h-12 bg-black/50 backdrop-blur-md border border-gray-600/50 rounded-full flex items-center justify-center shadow-lg pointer-events-auto z-[70] hover:bg-black/80 transition-colors"
+                            style={{ bottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+                        >
+                            {hotbarExpanded ? <ChevronDown size={24} className="text-gray-300" /> : <ChevronUp size={24} className="text-gray-300" />}
                         </button>
-                        <div className={`absolute left-1/2 -translate-x-1/2 pointer-events-auto transition-all duration-300 ease-out z-40 ${hotbarExpanded ? 'bottom-14 scale-100 opacity-100' : 'bottom-0 translate-y-full scale-90 opacity-0 pointer-events-none'}`}>
+                        <div 
+                            className={`absolute left-1/2 -translate-x-1/2 pointer-events-auto transition-all duration-300 ease-out z-40 ${hotbarExpanded ? 'scale-100 opacity-100' : 'translate-y-full scale-90 opacity-0 pointer-events-none'}`}
+                            style={{ bottom: hotbarExpanded ? 'max(5rem, calc(env(safe-area-inset-bottom) + 3.5rem))' : '0' }}
+                        >
                              <div className="bg-black/50 p-3 rounded-2xl border border-gray-700/50 backdrop-blur-md shadow-2xl flex gap-3 items-center">
                                  <button onClick={() => toggleInventory()} className="w-8 h-8 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center hover:bg-gray-700">
                                      <Settings size={14} className="text-gray-400" />
