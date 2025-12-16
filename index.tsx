@@ -1,6 +1,9 @@
+
 import React, { Component, ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+
+console.log("Crimson Inversion: System Boot Sequence Initiated...");
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

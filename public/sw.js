@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'crimson-pwa-v16-ghpages-absolute';
+const CACHE_NAME = 'crimson-pwa-v17-ghpages-fix';
 
 // Files we want to cache immediately on install
 const PRECACHE_URLS = [
@@ -13,7 +13,6 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        // We use relative paths here which resolve against the SW location
         return cache.addAll(PRECACHE_URLS).catch(err => {
             console.error('Pre-cache failed:', err);
         });
@@ -41,8 +40,6 @@ self.addEventListener('fetch', (event) => {
   // Only handle http/https requests
   if (!event.request.url.startsWith('http')) return;
 
-  const url = new URL(event.request.url);
-
   // Strategy 1: For HTML Navigation (index.html) -> Network First, Fallback to Cache
   if (event.request.mode === 'navigate') {
     event.respondWith(
@@ -55,7 +52,6 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => {
             // If offline, return the cached index.html
-            // We search for index.html in cache specifically
             return caches.match('./index.html').then(response => {
                 return response || caches.match(event.request);
             });
@@ -72,25 +68,16 @@ self.addEventListener('fetch', (event) => {
       }
 
       return fetch(event.request).then((networkResponse) => {
-        // Check if we received a valid response
         if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
           return networkResponse;
         }
-
-        // IMPORTANT: Clone the response. A response is a stream
-        // and because we want the browser to consume the response
-        // as well as the cache consuming the response, we need
-        // to clone it so we have two streams.
         const responseToCache = networkResponse.clone();
-
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseToCache);
         });
-
         return networkResponse;
       }).catch(err => {
-          // Network failed and not in cache. 
-          // For images/assets we could return a fallback here if needed.
+          // console.log('Fetch failed for', event.request.url);
       });
     })
   );
