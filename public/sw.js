@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'crimson-pwa-v17-ghpages-fix';
+const CACHE_NAME = 'crimson-pwa-v18-ghpages-relative';
 
 // Files we want to cache immediately on install
 const PRECACHE_URLS = [
